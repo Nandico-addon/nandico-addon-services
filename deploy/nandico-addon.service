@@ -1,0 +1,24 @@
+[Unit]
+Description=Nandico PACS add-on backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nandico
+Group=nandico
+WorkingDirectory=/opt/nandico-addon
+EnvironmentFile=/opt/nandico-addon/.env
+ExecStart=/usr/local/bin/node /opt/nandico-addon/src/server.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=40
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/nandico-addon/data /opt/nandico-addon/logs
+
+[Install]
+WantedBy=multi-user.target
