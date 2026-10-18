@@ -38,7 +38,7 @@ test('backend contract, authentication, group routing, deduplication and logs', 
   } };
   const options = { logger, providers: { icloudsms: fakeProvider, 'isolated-test': fakeProvider },
     groupLookup: (id) => id === 900001 ? { groupId: id, provider: 'isolated-test', enabled: true,
-      events: ['SIGNOFF'], credentialRefs: { apiKey: 'OTHER_TEST_KEY' } } : require('../src/config/groups').getGroupConfig(id) };
+      events: ['SIGNOFF'], credentialRefs: { apiKey: 'OTHER_TEST_KEY' } } : require('../src/clients').getGroupConfig(id) };
   let app = createApplication(config, options);
   let base;
   const start = async () => { const address = await app.start(0); base = `http://127.0.0.1:${address.port}`; };
@@ -212,7 +212,7 @@ test('repository recovery is explicit and CLI-style opening does not reset activ
   let repository = new OutboxRepository(directory);
   try {
     const value = event(1);
-    repository.accept(value, require('../src/config/groups').getGroupConfig(48991), encode(value), 'request-id');
+    repository.accept(value, require('../src/clients').getGroupConfig(48991), encode(value), 'request-id');
     const job = repository.claimJob();
     const inspector = new OutboxRepository(directory);
     assert.equal(inspector.getJob(job.id).status, 'processing'); inspector.close();

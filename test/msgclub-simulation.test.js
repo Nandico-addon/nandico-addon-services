@@ -10,6 +10,8 @@ const { createApplication } = require('../src/app');
 const { loadConfig } = require('../src/config/env');
 const { createLogger } = require('../src/utils/logger');
 const { sign, send } = require('../scripts/send-event');
+const { createClientRegistry, getGroupConfig } = require('../src/clients');
+const { OutboxRepository } = require('../src/repositories/outbox.repository');
 
 const simulationUrl = process.env.ICLOUDSMS_SIMULATION_URL;
 const credentials = { user: 'nandico', password: 'simulation-basic-password', secret: 'simulation-hmac-secret' };
@@ -23,15 +25,17 @@ function event(id, type = 'SIGNOFF', hasReport = true) {
   return value;
 }
 
-async function createTestApp(t, key = 'simulation-key') {
+async function createTestApp(t, key = 'simulation-key', options = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'nandico-msgclub-simulation-'));
   const config = loadConfig({ BASIC_USER: credentials.user, BASIC_PASSWORD: credentials.password,
     HMAC_SECRET: credentials.secret, DATA_DIR: path.join(directory, 'data'), LOG_DIR: path.join(directory, 'logs'),
     GROUP_48991_ICLOUDSMS_URL: 'https://msg.icloudsms.com/rest/services/sendSMS/v2/sendtemplate',
     GROUP_48991_ICLOUDSMS_AUTH_KEY: key, GROUP_48991_ICLOUDSMS_SENDER_ID: '919828298283',
-    ICLOUDSMS_SIMULATION_URL: simulationUrl });
+    ICLOUDSMS_SIMULATION_URL: simulationUrl, ...options.providerEnv });
+  options.prepareData?.(config);
   const app = createApplication({ ...config, workerIntervalMs: 50 }, {
     logger: createLogger({ directory: config.logDir, output: null }),
+    groupLookup: options.groupLookup,
   });
   t.after(async () => { await app.close(); fs.rmSync(directory, { recursive: true, force: true }); });
   const address = await app.start(0);
@@ -55,6 +59,69 @@ const getCalls = async () => {
   url.pathname = '/icloudsms/__requests'; url.search = '';
   return (await fetch(url)).json();
 };
+
+test('two client configurations share the MsgClub connector without mixing routes or credentials', {
+  skip: !simulationUrl && 'Run npm run test:msgclub to start the local provider simulation',
+}, async t => {
+  const second = getGroupConfig(48991);
+  second.groupId = 900002;
+  second.clientName = 'TEST SECOND CLIENT';
+  second.endpointRef = 'SECOND_TEST_URL';
+  second.credentialRefs = { authKey: 'SECOND_TEST_KEY', senderId: 'SECOND_TEST_SENDER' };
+  second.templates.SIGNOFF.PATIENT = second.templates.VIEW_IMAGES_PATIENT.withoutReport;
+  const registry = createClientRegistry([getGroupConfig(48991), second]);
+  const { app, post, settled } = await createTestApp(t, 'simulation-key', {
+    groupLookup: registry.getGroupConfig,
+    providerEnv: {
+      SECOND_TEST_URL: 'https://msg.msgclub.net/rest/services/sendSMS/v2/sendtemplate',
+      SECOND_TEST_KEY: 'simulation-rejected', SECOND_TEST_SENDER: '919828298283',
+    },
+  });
+  const before = (await getCalls()).length;
+  for (const [id, groupId] of [[10, 48991], [11, 900002], [12, 48991]]) {
+    const value = event(id);
+    value.groupId = groupId;
+    delete value.payload.centerName;
+    value.payload.recipients = [value.payload.recipients[0]];
+    assert.equal((await post(value)).status, 200);
+    await settled();
+  }
+  const calls = (await getCalls()).slice(before);
+  assert.deepEqual(calls.map(call => call.body.component.template.name), [
+    'report_ready_message', 'new_patient_message', 'report_ready_message',
+  ]);
+  assert.deepEqual(calls.map(call => call.body.component.template.components[0].parameters[1].text), [
+    'Ramsnehi Hospital', 'TEST SECOND CLIENT', 'Ramsnehi Hospital',
+  ]);
+  assert.deepEqual(app.repository.listJobs().reverse().map(job => [job.group_id, job.status, job.error_code]), [
+    [48991, 'accepted', null], [900002, 'failed', 'ICLOUDSMS_REJECTED'], [48991, 'accepted', null],
+  ]);
+});
+
+test('a pending job uses its persisted configuration after restart even when current routes differ', {
+  skip: !simulationUrl && 'Run npm run test:msgclub to start the local provider simulation',
+}, async t => {
+  const value = event(20);
+  value.payload.recipients = [value.payload.recipients[0]];
+  // Same plain-data shape as before the refactor; intentionally an older route.
+  const snapshot = getGroupConfig(48991);
+  snapshot.templates.SIGNOFF.PATIENT = snapshot.templates.VIEW_IMAGES_PATIENT.withoutReport;
+  const before = (await getCalls()).length;
+  const { app, post, settled } = await createTestApp(t, 'simulation-key', {
+    prepareData(config) {
+      const repository = new OutboxRepository(config.dataDir);
+      try {
+        repository.accept(value, snapshot, Buffer.from(JSON.stringify(value)), 'saved-request');
+      } finally { repository.close(); }
+    },
+  });
+  await settled();
+  assert.equal((await getCalls())[before].body.component.template.name, 'new_patient_message');
+  assert.equal(app.repository.listJobs()[0].status, 'accepted');
+  assert.equal(JSON.parse((await post(value)).body).status, 'duplicate');
+  assert.equal((await getCalls()).length, before + 1);
+  assert.deepEqual(JSON.parse(app.repository.db.prepare('SELECT group_config FROM events WHERE id=20').get().group_config), snapshot);
+});
 
 test('signed PACS events run through group 48991, SQLite, worker and real HTTP to the MsgClub simulation', {
   skip: !simulationUrl && 'Run npm run test:msgclub to start the local provider simulation',

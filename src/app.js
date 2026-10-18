@@ -3,7 +3,7 @@
 const http = require('node:http');
 const { OutboxRepository } = require('./repositories/outbox.repository');
 const { GroupRouterService } = require('./services/group-router.service');
-const { ProviderRegistry } = require('./services/providers');
+const { ProviderRegistry } = require('./integrations');
 const { OutboxService } = require('./services/outbox.service');
 const { NotificationService } = require('./services/notification.service');
 const { WorkerService } = require('./services/worker.service');

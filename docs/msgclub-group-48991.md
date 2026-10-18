@@ -14,11 +14,11 @@ The account's [API Hub](https://msg.msgclub.net/developerToolAPI.html), approved
 | VIEW_IMAGES_DOCTOR | hasReport=false | new_clinician_message |
 | VIEW_IMAGES_DOCTOR | hasReport=true | clinician_signoff_message |
 
-`SHARED` has no specified clinical role in the PACS contract, so it receives the patient report-ready message by default. Routes live in [groups.js](../src/config/groups.js). Each recipient creates one independent job and one provider request. Ten-digit PACS numbers are prefixed with `91` in both `mobileNumbers` and `component.to`.
+`SHARED` has no specified clinical role in the PACS contract, so it receives the patient report-ready message by default. Routes live in [Ramsnehi's config.js](../src/clients/ramsnehi/config.js). Each recipient creates one independent job and one provider request. Ten-digit PACS numbers are prefixed with `91` in both `mobileNumbers` and `component.to`.
 
 ## Account template catalog
 
-All ten templates below were approved and use language `en`. Their body counts, numbered parameter order and document headers were matched to the account's Ready JSON. Definitions are in [msgclub-templates.js](../src/config/msgclub-templates.js).
+All ten templates below were approved and use language `en`. Their body counts, numbered parameter order and document headers were matched to the account's Ready JSON. Definitions are in [Ramsnehi's whatsapp-templates.js](../src/clients/ramsnehi/whatsapp-templates.js).
 
 | Template | Body values, in numbered order | Document header | Automatic use |
 |---|---|---|---|

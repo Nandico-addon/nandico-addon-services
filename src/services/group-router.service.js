@@ -1,6 +1,6 @@
 'use strict';
 
-const { getGroupConfig } = require('../config/groups');
+const { getGroupConfig } = require('../clients');
 const { EVENT_TYPES } = require('../utils/validation');
 const { HttpError } = require('../utils/errors');
 

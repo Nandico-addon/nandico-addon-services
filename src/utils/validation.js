@@ -41,4 +41,4 @@ function validateEnvelope(event) {
   return event;
 }
 
-module.exports = { parseJson, validateEnvelope, EVENT_TYPES };
+module.exports = { parseJson, validateEnvelope, EVENT_TYPES, KINDS };

@@ -16,7 +16,7 @@ GROUP_48991_ICLOUDSMS_SENDER_ID=919828298283
 
 Run `npm start` or `npm run dev`. The server defaults to `127.0.0.1:3999`; source and environment changes require a restart in production. `GET /health` returns 200 locally, `GET /outbox` returns 405, and `/` returns 404.
 
-Group routing lives in [groups.js](src/config/groups.js); approved names and parameter order live in [msgclub-templates.js](src/config/msgclub-templates.js). See [Ramsnehi's complete routing and template catalog](docs/msgclub-group-48991.md).
+Register clients in [clients/index.js](src/clients/index.js). Ramsnehi's group, provider and event routing live in [its config.js](src/clients/ramsnehi/config.js); approved names and parameter order live in [its whatsapp-templates.js](src/clients/ramsnehi/whatsapp-templates.js). See [the maintenance guide](docs/code-structure.md) and [Ramsnehi's routing and template catalog](docs/msgclub-group-48991.md).
 
 Five clinical templates handle SIGNOFF and both VIEW_IMAGES events. Five other account templates are supported for explicit route selection, including PDF headers. The automatic routes send scan/report links in body parameters. None has an OTP slot: an event with a nonempty `otpCode` fails with `ICLOUDSMS_OTP_TEMPLATE_REQUIRED` until a suitable approved template is configured.
 
@@ -26,10 +26,15 @@ Five clinical templates handle SIGNOFF and both VIEW_IMAGES events. Five other a
 src/
   server.js                        Startup and graceful shutdown
   app.js                           HTTP server and dependency wiring
-  config/
-    env.js                         Environment validation
-    groups.js                      Ramsnehi group 48991 routing
-    msgclub-templates.js           Approved account templates
+  config/env.js                    Environment validation
+  clients/
+    index.js                       Register groups and isolate configurations
+    ramsnehi/
+      config.js                    Group 48991, provider and event routing
+      whatsapp-templates.js        Approved account templates
+  integrations/
+    index.js                       Reusable provider registry
+    whatsapp/msgclub/provider.js   MsgClub API, credentials and acknowledgements
   routes/router.js                 POST /outbox and GET /health
   controllers/outbox.controller.js  Authenticate and acknowledge requests
   middleware/                      Basic Auth, HMAC, timestamps and raw bytes
@@ -37,10 +42,8 @@ src/
     group-router.service.js        Resolve and validate the group
     outbox.service.js              Validate and durably accept events
     notification.service.js        Dispatch supported event types
+    whatsapp-template.service.js   Shared PACS values and template preparation
     worker.service.js              Background processing and retries
-    providers/
-      index.js                     Provider registry
-      icloudsms.service.js          Approved WhatsApp template requests
   repositories/outbox.repository.js SQLite events and recipient jobs
   utils/                           Errors, safe logging and validation
 scripts/

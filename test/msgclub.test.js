@@ -2,9 +2,9 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { ICloudSmsProviderService } = require('../src/services/providers/icloudsms.service');
-const { getGroupConfig } = require('../src/config/groups');
-const { RAMSNEHI_TEMPLATES } = require('../src/config/msgclub-templates');
+const { MsgClubProvider } = require('../src/integrations/whatsapp/msgclub/provider');
+const { getGroupConfig } = require('../src/clients');
+const { RAMSNEHI_TEMPLATES } = require('../src/clients/ramsnehi/whatsapp-templates');
 const { loadConfig } = require('../src/config/env');
 
 function setup() {
@@ -24,7 +24,7 @@ function setup() {
 
 test('group 48991 selects all five approved clinical templates in the provider parameter order', () => {
   const { config, job } = setup();
-  const provider = new ICloudSmsProviderService(config);
+  const provider = new MsgClubProvider(config);
   const expected = [
     ['SIGNOFF', 'PATIENT', true, 'report_ready_message', ['TEST PATIENT', 'Ramsnehi Hospital', '18 October 2026', job.event.payload.reportPdfLink]],
     ['SIGNOFF', 'REFERRING_DOCTOR', true, 'clinician_signoff_message', ['Ramsnehi Hospital', 'TEST PATIENT', '17 October 2026', job.event.payload.shareLink, job.event.payload.reportPdfLink]],
@@ -49,7 +49,7 @@ test('group 48991 selects all five approved clinical templates in the provider p
 
 test('all ten account templates match the body and document parameter counts from Ready JSON', () => {
   const { config, job } = setup();
-  const provider = new ICloudSmsProviderService(config);
+  const provider = new MsgClubProvider(config);
   // Counts captured independently from the vendor's Ready JSON, including PDFs.
   const shapes = {
     report_ready_message: [4, false], clinician_signoff_message: [5, false],
@@ -75,7 +75,7 @@ test('all ten account templates match the body and document parameter counts fro
 
 test('template values use stable IST dates, the report viewer fallback and explicit missing-data failures', () => {
   const { config, job } = setup();
-  const provider = new ICloudSmsProviderService(config);
+  const provider = new MsgClubProvider(config);
   delete job.event.payload.reportPdfLink;
   delete job.event.payload.patientName;
   delete job.event.payload.centerName;
@@ -102,7 +102,7 @@ test('template values use stable IST dates, the report viewer fallback and expli
 
 test('provider configuration rejects incomplete routes, other hosts, embedded credentials and production simulation', () => {
   const { config, group } = setup();
-  const provider = new ICloudSmsProviderService(config);
+  const provider = new MsgClubProvider(config);
   assert.equal(provider.isConfigured(group, 'SIGNOFF'), true);
   assert.equal(provider.isConfigured(group, 'UNKNOWN'), false);
   assert.equal(provider.isConfigured({ ...group, messageMode: 'text' }, 'SIGNOFF'), false);
@@ -138,7 +138,7 @@ test('provider configuration rejects incomplete routes, other hosts, embedded cr
 test('adapter acknowledges acceptance without declaring delivery and classifies uncertain sends without leaking secrets', async () => {
   const { config, job } = setup();
   let captured;
-  const provider = new ICloudSmsProviderService(config, async (url, init) => {
+  const provider = new MsgClubProvider(config, async (url, init) => {
     captured = { url: new URL(url), init };
     return { ok: true, status: 200, json: async () => ({ responseCode: '3001', response: 'provider-request-id' }) };
   });

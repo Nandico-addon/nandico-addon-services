@@ -1,12 +1,13 @@
 'use strict';
 
-const { ICloudSmsProviderService } = require('./icloudsms.service');
-const { HttpError } = require('../../utils/errors');
+const { MsgClubProvider } = require('./whatsapp/msgclub/provider');
+const { HttpError } = require('../utils/errors');
 
 class ProviderRegistry {
   constructor(config, overrides = {}) {
     this.providers = new Map([
-      ['icloudsms', new ICloudSmsProviderService(config)],
+      // Preserve the provider ID already stored in queued and historical jobs.
+      ['icloudsms', new MsgClubProvider(config)],
       ...Object.entries(overrides),
     ]);
   }
