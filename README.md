@@ -30,6 +30,8 @@ npm run demo -- --scenario invalid-json
 
 Expect health 200, event 200 accepted, repeated event 200 duplicate, invalid authentication 401, and signed malformed JSON 400. Group **42 is a local demo only** and never contacts WhatsApp. It is disabled in production. A browser GET to `/outbox` returns 405. `/` returns 404 because this backend has no homepage.
 
+For Postman, import [examples/local.postman_collection.json](examples/local.postman_collection.json). Set collection variables `basicPassword` and `hmacSecret` to your local `.env` values; `basicUser` defaults to `nandico`. Its pre-request script generates a fresh event ID, timestamp and HMAC over the exact resolved JSON body using [Postman's supported Web Crypto API](https://learning.postman.com/docs/tests-and-scripts/write-scripts/postman-sandbox-reference/pm-require). Group 42 returns 200 with simulated jobs. Group 2396 sends approved WhatsApp templates when configured, so its example requires a controlled `testMobile` and explicit `allowGroup2396Send=true`. Missing provider credentials return 503 `PROVIDER_NOT_CONFIGURED`. The signing script, opt-in guard and resolved requests are covered by an automated local test.
+
 ## Code structure
 
 ```text
@@ -53,6 +55,7 @@ src/
       index.js                     Register provider service implementations
       demo.service.js              No external requests
       aisensy.service.js           Example real provider adapter
+      icloudsms.service.js         MsgClub approved WhatsApp template requests
   repositories/outbox.repository.js Durable event IDs and recipient jobs in SQLite
   utils/                           Errors, JSON responses, validation and safe logging
 scripts/
@@ -65,8 +68,13 @@ scripts/
 Edit **src/config/groups.js**. It already contains explicit conditions for:
 
 - Group 42: local simulation, gated by ALLOW_DEMO_GROUP.
-- Group 2396: Ramsnehi Hospital's iCloudSMS configuration. Credentials are private environment references. Five approved English WhatsApp template names from `Downloads/whatsapp.png` are recorded in `templateNames`: `report_ready_message`, `clinician_signoff_message`, `patient_scan_done_report_created_info`, `new_clinician_message`, and `new_patient_message`. The screenshot truncates template bodies, so complete parameters and event/recipient mappings still need confirmation. Sending is disabled pending those details and the provider's request/response contract; no adapter is registered yet. Requests return 503 `GROUP_DISABLED` before storage or provider calls.
-- Group 57: an AiSensy example. Replace 57 with the actual client's PACS group ID, update its name and configure its credentials/campaigns. Incomplete configuration returns 503; it never pretends to send.
+- Group 2396: Ramsnehi Hospital's enabled MsgClub/iCloudSMS integration. It sends approved templates through `/v2/sendtemplate` using registered WhatsApp sender `919828298283`. Patient, clinician and report-state mappings match the account's Ready JSON. Set the endpoint, API key and sender in the three `GROUP_2396_ICLOUDSMS_*` variables. HTTPS is required for the live provider; redirects are rejected and website login credentials/cookies are not sent. See [the full template catalog and routing](docs/msgclub-group-2396.md).
+
+Five approved English clinical templates cover SIGNOFF and both VIEW_IMAGES events. Five other account templates are cataloged and supported for explicit route selection, including PDF document headers. The automatic routes send viewing/report links in body parameters. Their approved text has no OTP slot: a nonempty `otpCode` fails with `ICLOUDSMS_OTP_TEMPLATE_REQUIRED` until a suitable approved template is configured.
+
+The adapter recognizes `responseCode: 3001` with a request ID in `response`, or an explicit WhatsApp `messages[0].id`. Unrecognized successful HTTP responses become `needs_review` rather than being treated as sent or automatically retried. Provider acceptance is not delivery confirmation. `npm run jobs -- list` includes the provider request ID. Local end-to-end checks use a Postman simulation; no real message has been sent by these checks.
+
+The AiSensy adapter is an example for another client; add an explicit group condition and its own environment references before using it. Incomplete configuration returns 503.
 
 Copy an existing condition to add a client. Change its group ID, provider and credential references. The `campaignTemplates` helper lets you set the environment prefix and parameter order once for all three events; individual templates can still be overridden for client-specific needs. Disabled integrations return 503 instead of sending through an example provider.
 
@@ -173,7 +181,7 @@ Replace the placeholders. This can send a real WhatsApp notification. Confirm HT
 
 6. Enable the desired events for a PACS test group, use a study with a patient record and controlled test mobile, and trigger a qualifying event. Allow about a minute for PACS polling.
 
-The backend is deployed at `/opt/nandico-addon` on `addon.nandico.in`, managed by `nandico-addon.service`, with `/outbox` proxied by Nginx. Production disables the simulation group. Group 2396 has a pending iCloudSMS configuration and returns 503 `GROUP_DISABLED` until the API contract is confirmed and its adapter is implemented. A running endpoint does not yet mean WhatsApp sending is configured.
+The backend is deployed at `/opt/nandico-addon` on `addon.nandico.in`, managed by `nandico-addon.service`, with `/outbox` proxied by Nginx. Production disables the simulation group. Group 2396 uses its three provider environment variables and the verified WhatsApp sender. Back up the current code, environment and database before updates; preserve production PACS credentials, `data/` and `logs/`, then restart the service to load the release. Editing a local checkout does not update the running deployment.
 
 For future server setup, [deploy/install.py](deploy/install.py) installs a checksum-verified Node.js 24 runtime when needed, configures the dedicated service user, backs up Nginx configuration, validates the proxy and starts the service. Upload the application and private production `.env` to `/opt/nandico-addon` first, then run the installer as root. The systemd unit expects Node at `/usr/local/bin/node`.
 
@@ -192,6 +200,7 @@ Local tests use fake data and mocked provider calls. No real WhatsApp message ha
 
 ```bash
 npm test
+npm run test:msgclub
 ```
 
-Tests cover authentication, timestamps, exact bytes, schema, all event types, group isolation, concurrent duplicates, durable IDs, missing provider setup, fast acknowledgement, provider error handling, retries, safe startup recovery and log redaction.
+Tests cover authentication, timestamps, exact bytes, schema, all event types, group isolation, concurrent duplicates, durable IDs, missing provider setup, fast acknowledgement, provider error handling, retries, safe startup recovery and log redaction. The MsgClub command also runs the real backend against a local Postman provider simulation using fake credentials; see [group 2396 verification](docs/msgclub-group-2396.md).

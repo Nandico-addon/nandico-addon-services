@@ -1,0 +1,5 @@
+simulation: msgclub-group2396
+routing: path
+mocks:
+  - routeKey: icloudsms
+    path: ../mocks/msgclub/config.yaml

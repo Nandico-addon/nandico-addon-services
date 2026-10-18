@@ -4,6 +4,7 @@
 // group. All clients POST to the SAME /outbox endpoint and use PACS auth.
 // Store provider secrets in .env; reference their variable names here.
 const EVENTS = ['SIGNOFF', 'VIEW_IMAGES_PATIENT', 'VIEW_IMAGES_DOCTOR'];
+const { MSGCLUB_2396_TEMPLATES } = require('./msgclub-templates');
 
 // Change this client's parameter order once for all its event templates.
 function campaignTemplates(env, prefix, fields) {
@@ -23,25 +24,28 @@ function getGroupConfig(groupId, config) {
       groupId: 2396,
       clientName: 'Ramsnehi Hospital',
       provider: 'icloudsms',
-      // Enable only after confirming template parameters and the API contract,
-      // implementing its adapter, and registering it in providers/index.js.
-      enabled: false,
+      enabled: true,
+      messageMode: 'template',
       events: [...EVENTS],
       endpointRef: 'GROUP_2396_ICLOUDSMS_URL',
       credentialRefs: {
         authKey: 'GROUP_2396_ICLOUDSMS_AUTH_KEY',
-        username: 'GROUP_2396_ICLOUDSMS_USERNAME',
-        password: 'GROUP_2396_ICLOUDSMS_PASSWORD',
+        senderId: 'GROUP_2396_ICLOUDSMS_SENDER_ID',
       },
-      // Approved English WhatsApp names from Downloads/whatsapp.png.
-      // Inventory only: event/recipient mappings and complete parameters still
-      // need confirmation before the provider adapter can send messages.
-      templateNames: {
-        reportReady: 'report_ready_message',
-        clinicianSignoff: 'clinician_signoff_message',
-        patientScanDoneReportCreated: 'patient_scan_done_report_created_info',
-        newClinician: 'new_clinician_message',
-        newPatient: 'new_patient_message',
+      templates: {
+        SIGNOFF: {
+          PATIENT: MSGCLUB_2396_TEMPLATES.reportReady,
+          REFERRING_DOCTOR: MSGCLUB_2396_TEMPLATES.clinicianSignoff,
+          SHARED: MSGCLUB_2396_TEMPLATES.reportReady,
+        },
+        VIEW_IMAGES_PATIENT: {
+          withReport: MSGCLUB_2396_TEMPLATES.patientScanDoneReportCreated,
+          withoutReport: MSGCLUB_2396_TEMPLATES.newPatient,
+        },
+        VIEW_IMAGES_DOCTOR: {
+          withReport: MSGCLUB_2396_TEMPLATES.clinicianSignoff,
+          withoutReport: MSGCLUB_2396_TEMPLATES.newClinician,
+        },
       },
     };
   }
@@ -54,20 +58,6 @@ function getGroupConfig(groupId, config) {
       enabled: true,
       events: [...EVENTS],
       credentialRefs: {},
-    };
-  }
-
-  // Example: replace 57 with the ACTUAL PACS group ID for this client.
-  // Missing API key or campaign configuration returns 503, never a fake success.
-  if (groupId === 57) {
-    return {
-      groupId: 57,
-      clientName: 'Example AiSensy client - replace this name',
-      provider: 'aisensy',
-      enabled: true,
-      events: [...EVENTS],
-      credentialRefs: { apiKey: 'GROUP_57_AISENSY_API_KEY' },
-      templates: campaignTemplates(config.providerEnv, 'GROUP_57', ['patientName', 'shareLink', 'otpCode']),
     };
   }
 

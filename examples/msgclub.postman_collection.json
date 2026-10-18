@@ -1,0 +1,85 @@
+{
+  "info": {
+    "name": "MsgClub group 2396 approved templates",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Contract captured from MsgClub Ready JSON on 2026-10-18. Defaults to the local simulation and fake credentials. Response 3001 is acceptance only."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:4900/icloudsms"
+    },
+    {
+      "key": "authKey",
+      "value": "simulation-key"
+    }
+  ],
+  "item": [
+    {
+      "name": "Send report_ready_message",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/rest/services/sendSMS/v2/sendtemplate?AUTH_KEY={{authKey}}",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"mobileNumbers\":\"919876500001\",\"senderId\":\"919828298283\",\"component\":{\"messaging_product\":\"whatsapp\",\"recipient_type\":\"individual\",\"type\":\"template\",\"template\":{\"name\":\"report_ready_message\",\"language\":{\"code\":\"en\"},\"components\":[{\"type\":\"body\",\"index\":0,\"parameters\":[{\"type\":\"text\",\"text\":\"TEST PATIENT\"},{\"type\":\"text\",\"text\":\"Ramsnehi Hospital\"},{\"type\":\"text\",\"text\":\"18 October 2026\"},{\"type\":\"text\",\"text\":\"https://pacs.example.com/report/test.pdf\"}]}]},\"to\":\"919876500001\"}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [
+        {
+          "name": "Accepted",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/rest/services/sendSMS/v2/sendtemplate?AUTH_KEY={{authKey}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"mobileNumbers\":\"919876500001\",\"senderId\":\"919828298283\",\"component\":{\"messaging_product\":\"whatsapp\",\"recipient_type\":\"individual\",\"type\":\"template\",\"template\":{\"name\":\"report_ready_message\",\"language\":{\"code\":\"en\"},\"components\":[{\"type\":\"body\",\"index\":0,\"parameters\":[{\"type\":\"text\",\"text\":\"TEST PATIENT\"},{\"type\":\"text\",\"text\":\"Ramsnehi Hospital\"},{\"type\":\"text\",\"text\":\"18 October 2026\"},{\"type\":\"text\",\"text\":\"https://pacs.example.com/report/test.pdf\"}]}]},\"to\":\"919876500001\"}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"responseCode\": \"3001\", \"response\": \"simulated-provider-request-id\"}"
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Provider accepted the request', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().responseCode).to.eql('3001'); pm.expect(pm.response.json().response).to.be.a('string').and.not.empty; });"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

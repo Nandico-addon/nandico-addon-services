@@ -85,7 +85,7 @@ test('backend contract, authentication, group routing, deduplication and logs', 
     assert.equal(app.repository.findEvent(120), undefined);
     const pending = await post(encode(event(122, 2396)));
     assert.equal(pending.status, 503);
-    assert.equal(JSON.parse(pending.body).code, 'GROUP_DISABLED');
+    assert.equal(JSON.parse(pending.body).code, 'PROVIDER_NOT_CONFIGURED');
     assert.equal(app.repository.findEvent(122), undefined);
     const unconfigured = await post(encode(event(121, 57, 'VIEW_IMAGES_PATIENT')));
     // This configured test client filters patient events, rather than sending them.
@@ -143,7 +143,7 @@ test('an incomplete provider configuration is rejected before acknowledging or s
   const app = createApplication(baseConfig(directory), { logger: createLogger({ output: null }) });
   try {
     const address = await app.start(0);
-    const raw = encode(event(1, 57));
+    const raw = encode(event(1, 2396));
     const result = await send(`http://127.0.0.1:${address.port}/outbox`, raw, sign(raw, credentials));
     assert.equal(result.status, 503);
     assert.equal(JSON.parse(result.body).code, 'PROVIDER_NOT_CONFIGURED');
@@ -255,4 +255,46 @@ test('production configuration rejects example credentials and demo mode', () =>
 test('custom provider adapters must return a recognized acknowledgement', async () => {
   const service = new NotificationService({ get: () => ({ send: async () => ({ status: 'delivered' }) }) });
   await assert.rejects(service.send({ event: event(1), group: { provider: 'custom' } }), (error) => error.code === 'PROVIDER_ACK_INVALID' && error.ambiguous);
+});
+
+test('Postman collection signs its resolved body and reaches the local receiver', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'nandico-postman-'));
+  const app = createApplication(baseConfig(directory), { logger: createLogger({ output: null }) });
+  const collection = JSON.parse(fs.readFileSync(path.join(__dirname, '../examples/local.postman_collection.json')));
+  const script = collection.event[0].script.exec.join('\n');
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+  try {
+    const address = await app.start(0);
+    for (const item of collection.item.filter(item => item.request.method === 'POST')) {
+      const values = new Map(collection.variable.map(variable => [variable.key, variable.value]));
+      values.set('baseUrl', `http://127.0.0.1:${address.port}`);
+      values.set('basicPassword', credentials.password);
+      values.set('hmacSecret', credentials.secret);
+      const replaceIn = text => text.replace(/\{\{([^}]+)\}\}/g, (_, name) => values.get(name) ?? '');
+      let skipped = false;
+      const pm = { request: item.request, execution: { skipRequest: () => { skipped = true; } }, variables: {
+        get: name => values.get(name), set: (name, value) => values.set(name, value), replaceIn,
+      } };
+      const run = () => new AsyncFunction('pm', 'crypto', 'require', script)(pm, crypto.webcrypto, require);
+      if (item.name.includes('2396')) {
+        await assert.rejects(run(), /allowGroup2396Send/);
+        assert.equal(skipped, true);
+        skipped = false;
+        values.set('allowGroup2396Send', 'true');
+        await assert.rejects(run(), /testMobile/);
+        assert.equal(skipped, true);
+        skipped = false;
+        values.set('testMobile', '9876500001');
+      }
+      await run();
+      assert.equal(skipped, false);
+      const raw = Buffer.from(replaceIn(item.request.body.raw));
+      const headers = Object.fromEntries(item.request.header.map(header => [header.key, replaceIn(header.value)]));
+      headers.Authorization = 'Basic ' + Buffer.from(`${credentials.user}:${credentials.password}`).toString('base64');
+      const response = await send(replaceIn(item.request.url), raw, headers);
+      const groupId = JSON.parse(raw).groupId;
+      assert.equal(response.status, groupId === 42 ? 200 : 503);
+      if (groupId === 2396) assert.equal(JSON.parse(response.body).code, 'PROVIDER_NOT_CONFIGURED');
+    }
+  } finally { await app.close(); fs.rmSync(directory, { recursive: true, force: true }); }
 });

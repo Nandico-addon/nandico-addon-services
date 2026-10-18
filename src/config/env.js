@@ -10,6 +10,7 @@ function integer(value, fallback, min, max, name) {
 
 function loadConfig(env = process.env) {
   const production = env.NODE_ENV === 'production';
+  if (production && env.ICLOUDSMS_SIMULATION_URL) throw new Error('Remove ICLOUDSMS_SIMULATION_URL before production startup');
   for (const name of ['BASIC_PASSWORD', 'HMAC_SECRET']) if (!env[name]) throw new Error(`Missing ${name}; configure the supplied PACS credentials`);
   const user = env.BASIC_USER || 'nandico';
   if (user.includes(':') || /[\r\n]/.test(user + env.BASIC_PASSWORD)) throw new Error('Invalid Basic Auth credentials');

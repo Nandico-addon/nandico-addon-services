@@ -88,7 +88,7 @@ class OutboxRepository {
   }
 
   listJobs(status) {
-    const query = `SELECT j.id,j.event_id,e.group_id,j.status,j.attempts,j.error_code,j.updated_at FROM jobs j JOIN events e ON e.id=j.event_id`;
+    const query = `SELECT j.id,j.event_id,e.group_id,j.status,j.attempts,j.provider_message_id,j.error_code,j.updated_at FROM jobs j JOIN events e ON e.id=j.event_id`;
     return status ? this.db.prepare(query + ' WHERE j.status=? ORDER BY j.id DESC LIMIT 100').all(status)
       : this.db.prepare(query + ' ORDER BY j.id DESC LIMIT 100').all();
   }

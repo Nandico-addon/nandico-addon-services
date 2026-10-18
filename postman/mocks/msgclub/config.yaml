@@ -1,0 +1,10 @@
+version: 1
+name: msgclub
+slug: msgclub
+protocol: http
+port: 4500
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true
