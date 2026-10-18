@@ -1,4 +1,4 @@
-# Group 2396 — Ramsnehi Hospital WhatsApp integration
+# Group 48991 — Ramsnehi Hospital WhatsApp integration
 
 The account's [API Hub](https://msg.msgclub.net/developerToolAPI.html), approved broadcast templates and Ready JSON were inspected on 18 October 2026. The registered WhatsApp sender is `919828298283`; `RAMSNI` and `RAMSNC` belong to SMS. The integration uses `POST https://msg.icloudsms.com/rest/services/sendSMS/v2/sendtemplate` with `AUTH_KEY` in the query string and `Content-Type: application/json`. No website username, password or session cookie is needed for this request.
 
@@ -43,7 +43,7 @@ None of the approved clinical templates includes an OTP slot. If PACS supplies a
 
 ## Configuration and verification
 
-Group 2396 is enabled in code. Its ignored, private `.env` holds the API key, sender and endpoint. Credentials are referenced by environment variable name in saved group configurations; values are excluded from source, SQLite configuration snapshots and logs. The production service at `/opt/nandico-addon` needs the same three `GROUP_2396_ICLOUDSMS_*` variables and a restart after code or environment updates. Preserve its incoming PACS credentials and existing `data/` and `logs/` directories when deploying; back up the previous code, environment and SQLite database first.
+Group 48991 is the only configured group and is enabled in code. Its ignored, private `.env` holds the API key, sender and endpoint. Credentials are referenced by environment variable name in saved group configurations; values are excluded from source, SQLite configuration snapshots and logs. The production service at `/opt/nandico-addon` needs the same three `GROUP_48991_ICLOUDSMS_*` variables and a restart after code or environment updates. Preserve its incoming PACS credentials and existing `data/` and `logs/` directories when deploying; back up the previous code, environment and SQLite database first.
 
 Provider `responseCode: "3001"` plus a request ID marks a job `accepted`, not delivered. `npm run jobs -- list` includes `provider_message_id` for account/API-log correlation. Unclear acknowledgements, timeouts and server errors go to `needs_review`; rate limits retry. Existing event deduplication remains in force. Jobs already saved with an old configuration keep that snapshot and are not silently switched to a new message mode.
 
@@ -58,4 +58,4 @@ The second command requires Postman CLI 1.70+ and starts a local simulation usin
 
 `ICLOUDSMS_SIMULATION_URL` is restricted to the local `127.0.0.1` simulation route and is rejected during production startup. It is never set in the private local `.env`. The generated example acknowledgement and injected failures establish local integration behavior, not actual MsgClub delivery.
 
-For a controlled live test, the existing `npm run demo` command requires `--to` and `--allow-send`; use an event without `otpCode`, a current event timestamp and real test viewing/report links. The local Postman group-2396 example similarly requires `testMobile` and `allowGroup2396Send=true`. Neither test has been sent as part of this implementation.
+For a controlled live test, the existing `npm run send-event` command requires `--to` and `--allow-send`; use an event without `otpCode`, a current event timestamp and real test viewing/report links. The local Postman group-48991 request similarly requires `testMobile` and `allowLiveSend=true`. Neither test has been sent as part of this implementation.

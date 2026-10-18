@@ -2,7 +2,7 @@
 
 // Matched against this account's approved templates and Ready JSON on 2026-10-18.
 // Fields are in WhatsApp's numbered parameter order, not their order in the prose.
-const MSGCLUB_2396_TEMPLATES = {
+const RAMSNEHI_TEMPLATES = {
   reportReady: {
     name: 'report_ready_message', language: 'en',
     fields: ['patientName', 'centerName', 'reportDate', 'reportLink'],
@@ -38,4 +38,4 @@ const MSGCLUB_2396_TEMPLATES = {
   },
 };
 
-module.exports = { MSGCLUB_2396_TEMPLATES };
+module.exports = { RAMSNEHI_TEMPLATES };

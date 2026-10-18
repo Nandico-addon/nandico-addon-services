@@ -15,7 +15,7 @@ const simulationUrl = process.env.ICLOUDSMS_SIMULATION_URL;
 const credentials = { user: 'nandico', password: 'simulation-basic-password', secret: 'simulation-hmac-secret' };
 function event(id, type = 'SIGNOFF', hasReport = true) {
   const value = JSON.parse(fs.readFileSync(path.join(__dirname, '../examples/signoff.json')));
-  Object.assign(value, { id, groupId: 2396, type, createdAt: '2026-10-18 00:15:00' });
+  Object.assign(value, { id, groupId: 48991, type, createdAt: '2026-10-18 00:15:00' });
   Object.assign(value.payload, { hasReport, studyCreatedAt: '2026-10-17 23:30:00', centerName: 'Ramsnehi Hospital' });
   delete value.payload.otpCode;
   if (!hasReport) delete value.payload.reportPdfLink;
@@ -27,8 +27,8 @@ async function createTestApp(t, key = 'simulation-key') {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'nandico-msgclub-simulation-'));
   const config = loadConfig({ BASIC_USER: credentials.user, BASIC_PASSWORD: credentials.password,
     HMAC_SECRET: credentials.secret, DATA_DIR: path.join(directory, 'data'), LOG_DIR: path.join(directory, 'logs'),
-    GROUP_2396_ICLOUDSMS_URL: 'https://msg.icloudsms.com/rest/services/sendSMS/v2/sendtemplate',
-    GROUP_2396_ICLOUDSMS_AUTH_KEY: key, GROUP_2396_ICLOUDSMS_SENDER_ID: '919828298283',
+    GROUP_48991_ICLOUDSMS_URL: 'https://msg.icloudsms.com/rest/services/sendSMS/v2/sendtemplate',
+    GROUP_48991_ICLOUDSMS_AUTH_KEY: key, GROUP_48991_ICLOUDSMS_SENDER_ID: '919828298283',
     ICLOUDSMS_SIMULATION_URL: simulationUrl });
   const app = createApplication({ ...config, workerIntervalMs: 50 }, {
     logger: createLogger({ directory: config.logDir, output: null }),
@@ -56,7 +56,7 @@ const getCalls = async () => {
   return (await fetch(url)).json();
 };
 
-test('signed PACS events run through group 2396, SQLite, worker and real HTTP to the MsgClub simulation', {
+test('signed PACS events run through group 48991, SQLite, worker and real HTTP to the MsgClub simulation', {
   skip: !simulationUrl && 'Run npm run test:msgclub to start the local provider simulation',
 }, async t => {
   const { app, config, post, settled } = await createTestApp(t);
@@ -78,8 +78,8 @@ test('signed PACS events run through group 2396, SQLite, worker and real HTTP to
   assert.equal(calls[1].body.mobileNumbers, '919876500002');
   assert.equal(calls[2].body.mobileNumbers, '919876500003');
   assert.deepEqual(calls[1].body.component.template.components[0].parameters.map(p => p.text), [
-    'Ramsnehi Hospital', 'DEMO PATIENT', '17 October 2026',
-    'https://pacs.example.com/share/?link=demo', 'https://pacs.example.com/report/demo',
+    'Ramsnehi Hospital', 'TEST PATIENT', '17 October 2026',
+    'https://pacs.example.com/share/?link=test', 'https://pacs.example.com/report/test',
   ]);
   assert.equal(JSON.parse((await post(event(1))).body).status, 'duplicate');
   await settled();
@@ -93,7 +93,7 @@ test('signed PACS events run through group 2396, SQLite, worker and real HTTP to
     assert.ok(!groupSnapshot.includes(secret));
     assert.ok(!logs.includes(secret));
   }
-  for (const value of ['DEMO PATIENT', '9876500001', 'pacs.example.com']) assert.ok(!logs.includes(value));
+  for (const value of ['TEST PATIENT', '9876500001', 'pacs.example.com']) assert.ok(!logs.includes(value));
 });
 
 test('real provider HTTP errors preserve retry and review decisions without resending uncertain jobs', {

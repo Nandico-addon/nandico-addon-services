@@ -2,7 +2,7 @@
   "info": {
     "name": "Nandico Add-on - Local Tests",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Uses fresh Basic Auth + HMAC for each POST. Group 42 simulates only. Group 2396 can send a real approved WhatsApp template: set testMobile and allowGroup2396Send=true only for a controlled test."
+    "description": "Signs each POST with Basic Auth and HMAC. Group 48991 can send a real approved WhatsApp template: set testMobile and allowLiveSend=true only for a controlled test."
   },
   "auth": {
     "type": "basic",
@@ -37,7 +37,7 @@
       "value": ""
     },
     {
-      "key": "allowGroup2396Send",
+      "key": "allowLiveSend",
       "value": "false"
     },
     {
@@ -60,11 +60,11 @@
           "  const timestamp = String(Math.floor(Date.now() / 1000));",
           "  const raw = pm.variables.replaceIn(pm.request.body.raw);",
           "  const event = JSON.parse(raw);",
-          "  if (event.groupId === 2396 && pm.variables.get('allowGroup2396Send') !== 'true') {",
+          "  if (event.groupId === 48991 && pm.variables.get('allowLiveSend') !== 'true') {",
           "    pm.execution.skipRequest();",
-          "    throw new Error('Group 2396 sends real WhatsApp messages. Set testMobile and allowGroup2396Send=true for a controlled test.');",
+          "    throw new Error('Group 48991 sends real WhatsApp messages. Set testMobile and allowLiveSend=true for a controlled test.');",
           "  }",
-          "  if (event.groupId === 2396 && !/^[6-9][0-9]{9}$/.test(pm.variables.get('testMobile') || '')) {",
+          "  if (event.groupId === 48991 && !/^[6-9][0-9]{9}$/.test(pm.variables.get('testMobile') || '')) {",
           "    pm.execution.skipRequest();",
           "    throw new Error('Set testMobile to your controlled ten-digit Indian test number');",
           "  }",
@@ -90,7 +90,7 @@
       }
     },
     {
-      "name": "POST local group 42 - simulate notification",
+      "name": "POST local group 48991 - approved template (explicit opt-in)",
       "request": {
         "method": "POST",
         "header": [
@@ -109,48 +109,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"id\": {{eventId}},\n  \"type\": \"SIGNOFF\",\n  \"groupId\": 42,\n  \"reportStatusId\": 987654,\n  \"createdAt\": \"2026-10-07 18:35:15\",\n  \"payload\": {\n    \"reportStatusId\": 987654,\n    \"customerReportId\": 556677,\n    \"patientName\": \"DEMO PATIENT\",\n    \"centerName\": \"DEMO CENTRE\",\n    \"modality\": \"CT\",\n    \"shareLink\": \"https://pacs.example.com/share/?link=demo\",\n    \"otpCode\": \"123456\",\n    \"hasReport\": true,\n    \"reportPdfLink\": \"https://pacs.example.com/report/demo\",\n    \"reportFileName\": \"DEMO.pdf\",\n    \"recipients\": [\n      {\n        \"mobile\": \"9876500001\",\n        \"kind\": \"PATIENT\"\n      },\n      {\n        \"mobile\": \"9876500002\",\n        \"kind\": \"REFERRING_DOCTOR\"\n      },\n      {\n        \"mobile\": \"9876500003\",\n        \"kind\": \"SHARED\"\n      }\n    ]\n  }\n}",
-          "options": {
-            "raw": {
-              "language": "json"
-            }
-          }
-        },
-        "url": "{{baseUrl}}/outbox"
-      },
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Expected HTTP 200', () => pm.response.to.have.status(200));"
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "POST local group 2396 - approved template (explicit opt-in)",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          },
-          {
-            "key": "X-Timestamp",
-            "value": "{{timestamp}}"
-          },
-          {
-            "key": "X-Signature",
-            "value": "{{signature}}"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"id\": {{eventId}},\n  \"type\": \"SIGNOFF\",\n  \"groupId\": 2396,\n  \"reportStatusId\": 987654,\n  \"createdAt\": \"2026-10-07 18:35:15\",\n  \"payload\": {\n    \"reportStatusId\": 987654,\n    \"customerReportId\": 556677,\n    \"patientName\": \"DEMO PATIENT\",\n    \"centerName\": \"Ramsnehi Hospital\",\n    \"modality\": \"CT\",\n    \"shareLink\": \"https://pacs.example.com/share/?link=demo\",\n    \"hasReport\": true,\n    \"reportPdfLink\": \"https://pacs.example.com/report/demo\",\n    \"reportFileName\": \"DEMO.pdf\",\n    \"recipients\": [\n      {\n        \"mobile\": \"{{testMobile}}\",\n        \"kind\": \"PATIENT\"\n      }\n    ]\n  }\n}",
+          "raw": "{\n  \"id\": {{eventId}},\n  \"type\": \"SIGNOFF\",\n  \"groupId\": 48991,\n  \"reportStatusId\": 987654,\n  \"createdAt\": \"2026-10-07 18:35:15\",\n  \"payload\": {\n    \"reportStatusId\": 987654,\n    \"customerReportId\": 556677,\n    \"patientName\": \"TEST PATIENT\",\n    \"centerName\": \"Ramsnehi Hospital\",\n    \"modality\": \"CT\",\n    \"shareLink\": \"https://pacs.example.com/share/?link=test\",\n    \"hasReport\": true,\n    \"reportPdfLink\": \"https://pacs.example.com/report/test\",\n    \"reportFileName\": \"TEST.pdf\",\n    \"recipients\": [\n      {\n        \"mobile\": \"{{testMobile}}\",\n        \"kind\": \"PATIENT\"\n      }\n    ],\n    \"studyCreatedAt\": \"2026-10-07 18:02:11\"\n  }\n}",
           "options": {
             "raw": {
               "language": "json"

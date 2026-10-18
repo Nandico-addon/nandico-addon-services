@@ -4,17 +4,17 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { ICloudSmsProviderService } = require('../src/services/providers/icloudsms.service');
 const { getGroupConfig } = require('../src/config/groups');
-const { MSGCLUB_2396_TEMPLATES } = require('../src/config/msgclub-templates');
+const { RAMSNEHI_TEMPLATES } = require('../src/config/msgclub-templates');
 const { loadConfig } = require('../src/config/env');
 
 function setup() {
   const config = { production: false, providerTimeoutMs: 1000, providerEnv: {
-    GROUP_2396_ICLOUDSMS_URL: 'https://msg.icloudsms.com/rest/services/sendSMS/v2/sendtemplate',
-    GROUP_2396_ICLOUDSMS_AUTH_KEY: 'private-test-key',
-    GROUP_2396_ICLOUDSMS_SENDER_ID: '919828298283',
+    GROUP_48991_ICLOUDSMS_URL: 'https://msg.icloudsms.com/rest/services/sendSMS/v2/sendtemplate',
+    GROUP_48991_ICLOUDSMS_AUTH_KEY: 'private-test-key',
+    GROUP_48991_ICLOUDSMS_SENDER_ID: '919828298283',
   } };
-  const group = getGroupConfig(2396, config);
-  const event = { id: 1, groupId: 2396, type: 'SIGNOFF', createdAt: '2026-10-18 00:15:00', payload: {
+  const group = getGroupConfig(48991, config);
+  const event = { id: 1, groupId: 48991, type: 'SIGNOFF', createdAt: '2026-10-18 00:15:00', payload: {
     patientName: 'TEST PATIENT', centerName: 'Ramsnehi Hospital', studyCreatedAt: '2026-10-17 23:30:00',
     hasReport: true, shareLink: 'https://pacs.example.com/share/?link=test',
     reportPdfLink: 'https://pacs.example.com/report/test.pdf', reportFileName: 'TEST.pdf',
@@ -22,7 +22,7 @@ function setup() {
   return { config, group, job: { event, group, mobile: '9876500001', kind: 'PATIENT' } };
 }
 
-test('group 2396 selects all five approved clinical templates in the provider parameter order', () => {
+test('group 48991 selects all five approved clinical templates in the provider parameter order', () => {
   const { config, job } = setup();
   const provider = new ICloudSmsProviderService(config);
   const expected = [
@@ -57,8 +57,8 @@ test('all ten account templates match the body and document parameter counts fro
     new_patient_message: [4, false], ramsnehi_chatbot: [0, false], chating: [0, false],
     pathology_report: [0, true], office: [0, true], testing_template: [1, true],
   };
-  assert.equal(Object.keys(MSGCLUB_2396_TEMPLATES).length, Object.keys(shapes).length);
-  for (const template of Object.values(MSGCLUB_2396_TEMPLATES)) {
+  assert.equal(Object.keys(RAMSNEHI_TEMPLATES).length, Object.keys(shapes).length);
+  for (const template of Object.values(RAMSNEHI_TEMPLATES)) {
     const group = structuredClone(job.group);
     group.templates.SIGNOFF.PATIENT = template;
     const result = provider.buildPayload({ ...job, group }).component.template;
@@ -96,7 +96,7 @@ test('template values use stable IST dates, the report viewer fallback and expli
   assert.throws(() => provider.buildPayload({ ...job, mobile: '91XXXXXXXXXX' }), { code: 'ICLOUDSMS_INVALID_RECIPIENT' });
   assert.throws(() => provider.buildPayload({ ...job, kind: 'UNKNOWN' }), { code: 'ICLOUDSMS_TEMPLATE_NOT_CONFIGURED' });
   const group = structuredClone(job.group);
-  group.templates.SIGNOFF.PATIENT = MSGCLUB_2396_TEMPLATES.pathologyReport;
+  group.templates.SIGNOFF.PATIENT = RAMSNEHI_TEMPLATES.pathologyReport;
   assert.throws(() => provider.buildPayload({ ...job, group }), { code: 'ICLOUDSMS_MISSING_REPORT_PDF' });
 });
 
@@ -110,10 +110,10 @@ test('provider configuration rejects incomplete routes, other hosts, embedded cr
   delete incomplete.templates.SIGNOFF.SHARED;
   assert.equal(provider.isConfigured(incomplete, 'SIGNOFF'), false);
   for (const sender of ['', 'RAMSNI']) {
-    config.providerEnv.GROUP_2396_ICLOUDSMS_SENDER_ID = sender;
+    config.providerEnv.GROUP_48991_ICLOUDSMS_SENDER_ID = sender;
     assert.equal(provider.isConfigured(group, 'SIGNOFF'), false);
   }
-  config.providerEnv.GROUP_2396_ICLOUDSMS_SENDER_ID = '919828298283';
+  config.providerEnv.GROUP_48991_ICLOUDSMS_SENDER_ID = '919828298283';
   for (const url of [
     'http://msg.icloudsms.com/rest/services/sendSMS/v2/sendtemplate',
     'https://example.com/rest/services/sendSMS/v2/sendtemplate',
@@ -121,10 +121,10 @@ test('provider configuration rejects incomplete routes, other hosts, embedded cr
     'https://msg.icloudsms.com/rest/services/sendSMS/v3/sendChat',
     'https://user:password@msg.icloudsms.com/rest/services/sendSMS/v2/sendtemplate',
   ]) {
-    config.providerEnv.GROUP_2396_ICLOUDSMS_URL = url;
+    config.providerEnv.GROUP_48991_ICLOUDSMS_URL = url;
     assert.equal(provider.isConfigured(group, 'SIGNOFF'), false);
   }
-  config.providerEnv.GROUP_2396_ICLOUDSMS_URL = 'https://msg.icloudsms.com/rest/services/sendSMS/v2/sendtemplate';
+  config.providerEnv.GROUP_48991_ICLOUDSMS_URL = 'https://msg.icloudsms.com/rest/services/sendSMS/v2/sendtemplate';
   config.providerEnv.ICLOUDSMS_SIMULATION_URL = 'http://127.0.0.1:4900/icloudsms/rest/services/sendSMS/v2/sendtemplate';
   assert.equal(provider.isConfigured(group, 'SIGNOFF'), true);
   config.production = true;

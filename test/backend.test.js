@@ -11,12 +11,11 @@ const { loadConfig } = require('../src/config/env');
 const { createLogger } = require('../src/utils/logger');
 const { OutboxRepository } = require('../src/repositories/outbox.repository');
 const { ProviderError } = require('../src/utils/errors');
-const { AiSensyProviderService } = require('../src/services/providers/aisensy.service');
 const { NotificationService } = require('../src/services/notification.service');
 const { sign, send } = require('../scripts/send-event');
 
 const credentials = { user: 'nandico', password: 'test-basic-password', secret: 'test-hmac-secret' };
-const event = (id, groupId = 42, type = 'SIGNOFF') => {
+const event = (id, groupId = 48991, type = 'SIGNOFF') => {
   const value = { ...JSON.parse(fs.readFileSync(path.join(__dirname, '../examples/signoff.json'))), id, groupId, type };
   if (type !== 'SIGNOFF') {
     value.payload.hasReport = false; delete value.payload.reportPdfLink;
@@ -34,10 +33,12 @@ test('backend contract, authentication, group routing, deduplication and logs', 
   const config = baseConfig(directory);
   const logger = createLogger({ directory: config.logDir, output: null });
   const calls = [];
-  const options = { logger, providers: {
-    client57: { isConfigured: () => true, send: async (job) => { calls.push(job); return { status: 'accepted', providerMessageId: 'test-message-id' }; } },
-  }, groupLookup: (id, settings) => id === 57 ? { groupId: 57, provider: 'client57', enabled: true,
-    events: ['SIGNOFF'], credentialRefs: { apiKey: 'GROUP_57_TEST_KEY' } } : require('../src/config/groups').getGroupConfig(id, settings) };
+  const fakeProvider = { isConfigured: () => true, send: async (job) => {
+    calls.push(job); return { status: 'accepted', providerMessageId: 'test-message-id' };
+  } };
+  const options = { logger, providers: { icloudsms: fakeProvider, 'isolated-test': fakeProvider },
+    groupLookup: (id) => id === 900001 ? { groupId: id, provider: 'isolated-test', enabled: true,
+      events: ['SIGNOFF'], credentialRefs: { apiKey: 'OTHER_TEST_KEY' } } : require('../src/config/groups').getGroupConfig(id) };
   let app = createApplication(config, options);
   let base;
   const start = async () => { const address = await app.start(0); base = `http://127.0.0.1:${address.port}`; };
@@ -71,35 +72,37 @@ test('backend contract, authentication, group routing, deduplication and logs', 
     assert.equal(app.repository.findEvent(100), undefined);
     assert.equal((await post(raw)).status, 200);
   });
-  await t.test('all event types are acknowledged and simulated per recipient', async () => {
+  await t.test('all event types are acknowledged and dispatched per recipient', async () => {
     for (const [index, type] of ['SIGNOFF', 'VIEW_IMAGES_PATIENT', 'VIEW_IMAGES_DOCTOR'].entries()) {
-      const result = await post(encode(event(110 + index, 42, type)));
+      const result = await post(encode(event(110 + index, 48991, type)));
       assert.equal(result.status, 200); assert.equal(JSON.parse(result.body).status, 'accepted');
     }
     await app.worker.wake();
-    assert.ok(app.repository.listJobs().every((job) => job.status === 'simulated'));
+    assert.ok(app.repository.listJobs().every((job) => job.status === 'accepted'));
   });
   await t.test('unknown groups return 503 and unselected events are filtered', async () => {
     const unknown = await post(encode(event(120, 999)));
     assert.equal(unknown.status, 503); assert.equal(JSON.parse(unknown.body).code, 'GROUP_NOT_CONFIGURED');
     assert.equal(app.repository.findEvent(120), undefined);
-    const pending = await post(encode(event(122, 2396)));
-    assert.equal(pending.status, 503);
-    assert.equal(JSON.parse(pending.body).code, 'PROVIDER_NOT_CONFIGURED');
-    assert.equal(app.repository.findEvent(122), undefined);
-    const unconfigured = await post(encode(event(121, 57, 'VIEW_IMAGES_PATIENT')));
+    for (const [index, groupId] of [2396, 42].entries()) {
+      const result = await post(encode(event(122 + index, groupId)));
+      assert.equal(result.status, 503);
+      assert.equal(JSON.parse(result.body).code, 'GROUP_NOT_CONFIGURED');
+      assert.equal(app.repository.findEvent(122 + index), undefined);
+    }
+    const unconfigured = await post(encode(event(121, 900001, 'VIEW_IMAGES_PATIENT')));
     // This configured test client filters patient events, rather than sending them.
     assert.equal(JSON.parse(unconfigured.body).status, 'filtered');
   });
   await t.test('group ID selects the correct service; duplicate IDs never cross groups', async () => {
-    const result = await post(encode(event(130, 57)));
+    const result = await post(encode(event(130, 900001)));
     assert.equal(result.status, 200);
     await app.worker.wake();
-    assert.equal(calls.length, 3);
-    assert.ok(calls.every((job) => job.event.groupId === 57 && job.group.credentialRefs.apiKey === 'GROUP_57_TEST_KEY'));
-    assert.equal((await post(encode(event(130, 42)))).status, 409);
-    assert.equal(JSON.parse((await post(encode(event(130, 57)))).body).status, 'duplicate');
-    assert.equal((await post(encode(event(131, 57)), {}, { Authorization: 'Basic invalid' })).status, 401);
+    assert.equal(calls.filter(job => job.event.id === 130).length, 3);
+    assert.ok(calls.filter(job => job.event.id === 130).every(job => job.event.groupId === 900001 && job.group.credentialRefs.apiKey === 'OTHER_TEST_KEY'));
+    assert.equal((await post(encode(event(130, 48991)))).status, 409);
+    assert.equal(JSON.parse((await post(encode(event(130, 900001)))).body).status, 'duplicate');
+    assert.equal((await post(encode(event(131, 900001)), {}, { Authorization: 'Basic invalid' })).status, 401);
   });
   await t.test('eight parallel retries and duplicate mobile numbers create one set of jobs', async () => {
     const value = event(140); value.payload.recipients.push(value.payload.recipients[0]);
@@ -110,7 +113,7 @@ test('backend contract, authentication, group routing, deduplication and logs', 
     assert.equal(app.repository.listJobs().filter((job) => job.event_id === 140).length, 3);
   });
   await t.test('invalid JSON, schema, encoding and oversized bodies are rejected', async () => {
-    for (const raw of [Buffer.from('{invalid'), encode(null), encode({}), encode({ ...event(150), groupId: '42' }), Buffer.from([0xff])]) {
+    for (const raw of [Buffer.from('{invalid'), encode(null), encode({}), encode({ ...event(150), groupId: '48991' }), Buffer.from([0xff])]) {
       assert.equal((await post(raw)).status, 400);
     }
     assert.equal((await post(encode(event(151)), {}, { 'Content-Type': 'text/plain' })).status, 415);
@@ -131,10 +134,10 @@ test('backend contract, authentication, group routing, deduplication and logs', 
   await t.test('logs correlate requests/jobs without patient data, headers or credentials', async () => {
     const logs = fs.readdirSync(config.logDir).map((file) => fs.readFileSync(path.join(config.logDir, file), 'utf8')).join('');
     const lines = logs.trim().split('\n').map(JSON.parse);
-    assert.ok(lines.some((entry) => entry.event === 'outbox.accepted' && entry.groupId === 42 && entry.requestId));
-    assert.ok(lines.some((entry) => entry.event === 'notification.simulated' && entry.jobId));
+    assert.ok(lines.some((entry) => entry.event === 'outbox.accepted' && entry.groupId === 48991 && entry.requestId));
+    assert.ok(lines.some((entry) => entry.event === 'notification.accepted' && entry.jobId));
     assert.ok(lines.some((entry) => entry.route === '/outbox' && entry.method === 'POST' && entry.httpStatus === 401));
-    for (const value of ['DEMO PATIENT', '9876500001', credentials.password, credentials.secret, 'X-Signature', 'Authorization', 'pacs.example.com', '123456']) assert.ok(!logs.includes(value), `logs must not contain ${value}`);
+    for (const value of ['TEST PATIENT', '9876500001', credentials.password, credentials.secret, 'X-Signature', 'Authorization', 'pacs.example.com', '123456']) assert.ok(!logs.includes(value), `logs must not contain ${value}`);
   });
 });
 
@@ -143,7 +146,7 @@ test('an incomplete provider configuration is rejected before acknowledging or s
   const app = createApplication(baseConfig(directory), { logger: createLogger({ output: null }) });
   try {
     const address = await app.start(0);
-    const raw = encode(event(1, 2396));
+    const raw = encode(event(1, 48991));
     const result = await send(`http://127.0.0.1:${address.port}/outbox`, raw, sign(raw, credentials));
     assert.equal(result.status, 503);
     assert.equal(JSON.parse(result.body).code, 'PROVIDER_NOT_CONFIGURED');
@@ -165,7 +168,7 @@ test('retryable provider failures persist their schedule and can recover without
   });
   try {
     const address = await app.start(0);
-    const value = event(1, 57); value.payload.recipients = [value.payload.recipients[0]];
+    const value = event(1, 48991); value.payload.recipients = [value.payload.recipients[0]];
     const raw = encode(value);
     assert.equal((await send(`http://127.0.0.1:${address.port}/outbox`, raw, sign(raw, credentials))).status, 200);
     await app.worker.wake();
@@ -193,7 +196,7 @@ test('HTTP acknowledgement does not wait for a slow provider', async () => {
   });
   try {
     const address = await app.start(0);
-    const raw = encode(event(1, 57));
+    const raw = encode(event(1, 48991));
     const response = await Promise.race([
       send(`http://127.0.0.1:${address.port}/outbox`, raw, sign(raw, credentials)),
       new Promise((_, reject) => { const timeout = setTimeout(() => reject(new Error('acknowledgement waited for provider')), 2000); timeout.unref(); }),
@@ -204,35 +207,12 @@ test('HTTP acknowledgement does not wait for a slow provider', async () => {
   } finally { release(); await app.close(); fs.rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('AiSensy adapter uses the group credential, template order and safe failure classification', async () => {
-  const config = { providerEnv: { GROUP_57_KEY: 'client-private-key' }, providerTimeoutMs: 15000 };
-  let captured;
-  const provider = new AiSensyProviderService(config, async (url, init) => {
-    captured = { url, body: JSON.parse(init.body) };
-    return { ok: true, status: 200, json: async () => ({ success: true }) };
-  });
-  const group = { credentialRefs: { apiKey: 'GROUP_57_KEY' }, templates: { SIGNOFF: { name: 'Report Ready', fields: ['patientName', 'shareLink', 'otpCode'] } } };
-  const job = { event: event(1, 57), mobile: '9876500001', group };
-  assert.equal(provider.isConfigured(group, 'SIGNOFF'), true);
-  assert.equal((await provider.send(job)).status, 'accepted');
-  assert.equal(captured.url, 'https://backend.aisensy.com/campaign/t1/api/v2');
-  assert.equal(captured.body.apiKey, 'client-private-key');
-  assert.equal(captured.body.destination, '+919876500001');
-  assert.equal(captured.body.templateParams[2], '123456');
-  provider.fetch = async () => ({ ok: false, status: 429, json: async () => ({}) });
-  await assert.rejects(provider.send(job), (error) => error instanceof ProviderError && error.retryable);
-  provider.fetch = async () => { throw new Error('echo client-private-key'); };
-  await assert.rejects(provider.send(job), (error) => error.ambiguous && !error.message.includes('client-private-key'));
-  provider.fetch = async () => ({ ok: true, status: 200, json: async () => ({ success: false, error: 'client-private-key' }) });
-  await assert.rejects(provider.send(job), (error) => error.code === 'AISENSY_REJECTED');
-});
-
 test('repository recovery is explicit and CLI-style opening does not reset active jobs', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'nandico-recovery-'));
   let repository = new OutboxRepository(directory);
   try {
     const value = event(1);
-    repository.accept(value, { groupId: 42, provider: 'demo', events: ['SIGNOFF'] }, encode(value), 'request-id');
+    repository.accept(value, require('../src/config/groups').getGroupConfig(48991), encode(value), 'request-id');
     const job = repository.claimJob();
     const inspector = new OutboxRepository(directory);
     assert.equal(inspector.getJob(job.id).status, 'processing'); inspector.close();
@@ -244,12 +224,11 @@ test('repository recovery is explicit and CLI-style opening does not reset activ
   } finally { repository.close(); fs.rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('production configuration rejects example credentials and demo mode', () => {
+test('production configuration rejects example credentials', () => {
   assert.throws(() => loadConfig({}), /BASIC_PASSWORD/);
   assert.throws(() => loadConfig({ NODE_ENV: 'production', BASIC_PASSWORD: 'example-password', HMAC_SECRET: 'example-secret' }), /real PACS credentials/);
-  assert.throws(() => loadConfig({ NODE_ENV: 'production', BASIC_PASSWORD: 'real-password', HMAC_SECRET: 'real-secret', ALLOW_DEMO_GROUP: 'true' }), /Disable ALLOW_DEMO_GROUP/);
   const config = loadConfig({ NODE_ENV: 'production', BASIC_PASSWORD: 'real-password', HMAC_SECRET: 'real-secret' });
-  assert.equal(config.allowDemoGroup, false);
+  assert.equal(config.production, true);
 });
 
 test('custom provider adapters must return a recognized acknowledgement', async () => {
@@ -276,11 +255,11 @@ test('Postman collection signs its resolved body and reaches the local receiver'
         get: name => values.get(name), set: (name, value) => values.set(name, value), replaceIn,
       } };
       const run = () => new AsyncFunction('pm', 'crypto', 'require', script)(pm, crypto.webcrypto, require);
-      if (item.name.includes('2396')) {
-        await assert.rejects(run(), /allowGroup2396Send/);
+      if (item.name.includes('48991')) {
+        await assert.rejects(run(), /allowLiveSend/);
         assert.equal(skipped, true);
         skipped = false;
-        values.set('allowGroup2396Send', 'true');
+        values.set('allowLiveSend', 'true');
         await assert.rejects(run(), /testMobile/);
         assert.equal(skipped, true);
         skipped = false;
@@ -293,8 +272,8 @@ test('Postman collection signs its resolved body and reaches the local receiver'
       headers.Authorization = 'Basic ' + Buffer.from(`${credentials.user}:${credentials.password}`).toString('base64');
       const response = await send(replaceIn(item.request.url), raw, headers);
       const groupId = JSON.parse(raw).groupId;
-      assert.equal(response.status, groupId === 42 ? 200 : 503);
-      if (groupId === 2396) assert.equal(JSON.parse(response.body).code, 'PROVIDER_NOT_CONFIGURED');
+      assert.equal(response.status, 503);
+      if (groupId === 48991) assert.equal(JSON.parse(response.body).code, 'PROVIDER_NOT_CONFIGURED');
     }
   } finally { await app.close(); fs.rmSync(directory, { recursive: true, force: true }); }
 });

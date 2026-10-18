@@ -1,206 +1,115 @@
 # Nandico add-on backend
 
-Backend-only implementation of [the PACS contract](docs/addon-service-integration.md). JavaScript, Node.js 22.13+, built-in HTTP/crypto/SQLite modules. No UI, login system, frontend dependencies or configuration dashboard.
+Backend implementation of [the PACS push contract](docs/addon-service-integration.md), using Node.js 22.13+ and built-in HTTP, crypto and SQLite modules.
 
-One endpoint receives every client: **POST https://addon.nandico.in/outbox**. Incoming Basic Auth and HMAC verify PACS. The signed body's `groupId` selects the client-specific logic in code.
+**POST https://addon.nandico.in/outbox** receives signed PACS events. Ramsnehi Hospital's actual group is **48991**, and its only configured provider is MsgClub/iCloudSMS. Unconfigured groups return 503; there is no default client or dummy group.
 
-## Start and test
+## Configuration
 
-```bash
-# If .env does not already exist:
-cp .env.example .env
+If `.env` does not exist, copy `.env.example` and configure incoming PACS Basic Auth and HMAC credentials. Keep the provider API key in the private `.env`:
 
-npm start
+```dotenv
+GROUP_48991_ICLOUDSMS_URL=https://msg.icloudsms.com/rest/services/sendSMS/v2/sendtemplate
+GROUP_48991_ICLOUDSMS_AUTH_KEY=<private-api-key>
+GROUP_48991_ICLOUDSMS_SENDER_ID=919828298283
 ```
 
-The server defaults to `127.0.0.1:3999`. The existing `.env` is preserved; unused variables from the old application can be removed. Configure BASIC_USER, BASIC_PASSWORD and HMAC_SECRET to match PACS. Demo credentials work only outside production.
+Run `npm start` or `npm run dev`. The server defaults to `127.0.0.1:3999`; source and environment changes require a restart in production. `GET /health` returns 200 locally, `GET /outbox` returns 405, and `/` returns 404.
 
-In another terminal:
+Group routing lives in [groups.js](src/config/groups.js); approved names and parameter order live in [msgclub-templates.js](src/config/msgclub-templates.js). See [Ramsnehi's complete routing and template catalog](docs/msgclub-group-48991.md).
 
-```bash
-curl http://127.0.0.1:3999/health
-npm run demo -- --group 42 --id 9001
-npm run demo -- --group 42 --id 9001
-npm run demo -- --scenario wrong-basic
-npm run demo -- --scenario wrong-hmac
-npm run demo -- --scenario tampered-body
-npm run demo -- --scenario expired
-npm run demo -- --scenario invalid-json
-```
-
-Expect health 200, event 200 accepted, repeated event 200 duplicate, invalid authentication 401, and signed malformed JSON 400. Group **42 is a local demo only** and never contacts WhatsApp. It is disabled in production. A browser GET to `/outbox` returns 405. `/` returns 404 because this backend has no homepage.
-
-For Postman, import [examples/local.postman_collection.json](examples/local.postman_collection.json). Set collection variables `basicPassword` and `hmacSecret` to your local `.env` values; `basicUser` defaults to `nandico`. Its pre-request script generates a fresh event ID, timestamp and HMAC over the exact resolved JSON body using [Postman's supported Web Crypto API](https://learning.postman.com/docs/tests-and-scripts/write-scripts/postman-sandbox-reference/pm-require). Group 42 returns 200 with simulated jobs. Group 2396 sends approved WhatsApp templates when configured, so its example requires a controlled `testMobile` and explicit `allowGroup2396Send=true`. Missing provider credentials return 503 `PROVIDER_NOT_CONFIGURED`. The signing script, opt-in guard and resolved requests are covered by an automated local test.
+Five clinical templates handle SIGNOFF and both VIEW_IMAGES events. Five other account templates are supported for explicit route selection, including PDF headers. The automatic routes send scan/report links in body parameters. None has an OTP slot: an event with a nonempty `otpCode` fails with `ICLOUDSMS_OTP_TEMPLATE_REQUIRED` until a suitable approved template is configured.
 
 ## Code structure
 
 ```text
 src/
   server.js                        Startup and graceful shutdown
-  app.js                           Dependency wiring and HTTP errors
+  app.js                           HTTP server and dependency wiring
   config/
-    env.js                         Environment configuration
-    groups.js                      EDIT HERE: if groupId then client configuration
+    env.js                         Environment validation
+    groups.js                      Ramsnehi group 48991 routing
+    msgclub-templates.js           Approved account templates
   routes/router.js                 POST /outbox and GET /health
-  controllers/outbox.controller.js  Read raw bytes, authenticate, acknowledge
-  middleware/
-    auth.middleware.js             Basic Auth + HMAC + five-minute timestamp check
-    request.middleware.js          Request IDs, bounded raw-body reading and timing
+  controllers/outbox.controller.js  Authenticate and acknowledge requests
+  middleware/                      Basic Auth, HMAC, timestamps and raw bytes
   services/
-    group-router.service.js        Resolve and validate the selected group
-    outbox.service.js              Validate, deduplicate and durably accept events
-    notification.service.js        Event-specific notification dispatch
-    worker.service.js              Background processing and retry decisions
+    group-router.service.js        Resolve and validate the group
+    outbox.service.js              Validate and durably accept events
+    notification.service.js        Dispatch supported event types
+    worker.service.js              Background processing and retries
     providers/
-      index.js                     Register provider service implementations
-      demo.service.js              No external requests
-      aisensy.service.js           Example real provider adapter
-      icloudsms.service.js         MsgClub approved WhatsApp template requests
-  repositories/outbox.repository.js Durable event IDs and recipient jobs in SQLite
-  utils/                           Errors, JSON responses, validation and safe logging
+      index.js                     Provider registry
+      icloudsms.service.js          Approved WhatsApp template requests
+  repositories/outbox.repository.js SQLite events and recipient jobs
+  utils/                           Errors, safe logging and validation
 scripts/
-  send-event.js                    Sign and submit a test event
-  jobs.js                          Inspect/retry jobs without a UI
+  send-event.js                    Sign and submit a controlled test event
+  jobs.js                          Inspect or retry jobs
+  test-msgclub-simulation.js       Run the local provider simulation
 ```
 
-## Add or change a client
-
-Edit **src/config/groups.js**. It already contains explicit conditions for:
-
-- Group 42: local simulation, gated by ALLOW_DEMO_GROUP.
-- Group 2396: Ramsnehi Hospital's enabled MsgClub/iCloudSMS integration. It sends approved templates through `/v2/sendtemplate` using registered WhatsApp sender `919828298283`. Patient, clinician and report-state mappings match the account's Ready JSON. Set the endpoint, API key and sender in the three `GROUP_2396_ICLOUDSMS_*` variables. HTTPS is required for the live provider; redirects are rejected and website login credentials/cookies are not sent. See [the full template catalog and routing](docs/msgclub-group-2396.md).
-
-Five approved English clinical templates cover SIGNOFF and both VIEW_IMAGES events. Five other account templates are cataloged and supported for explicit route selection, including PDF document headers. The automatic routes send viewing/report links in body parameters. Their approved text has no OTP slot: a nonempty `otpCode` fails with `ICLOUDSMS_OTP_TEMPLATE_REQUIRED` until a suitable approved template is configured.
-
-The adapter recognizes `responseCode: 3001` with a request ID in `response`, or an explicit WhatsApp `messages[0].id`. Unrecognized successful HTTP responses become `needs_review` rather than being treated as sent or automatically retried. Provider acceptance is not delivery confirmation. `npm run jobs -- list` includes the provider request ID. Local end-to-end checks use a Postman simulation; no real message has been sent by these checks.
-
-The AiSensy adapter is an example for another client; add an explicit group condition and its own environment references before using it. Incomplete configuration returns 503.
-
-Copy an existing condition to add a client. Change its group ID, provider and credential references. The `campaignTemplates` helper lets you set the environment prefix and parameter order once for all three events; individual templates can still be overridden for client-specific needs. Disabled integrations return 503 instead of sending through an example provider.
-
-Each client condition returns a serializable configuration:
-
-```js
-if (groupId === 123) {
-  return {
-    groupId: 123,
-    clientName: 'Your client',
-    provider: 'aisensy',
-    enabled: true,
-    events: ['SIGNOFF', 'VIEW_IMAGES_PATIENT', 'VIEW_IMAGES_DOCTOR'],
-    credentialRefs: { apiKey: 'CLIENT_123_AISENSY_API_KEY' },
-    templates: {
-      SIGNOFF: {
-        name: config.providerEnv.CLIENT_123_SIGNOFF_CAMPAIGN || '',
-        fields: ['patientName', 'shareLink', 'otpCode'],
-      },
-      VIEW_IMAGES_PATIENT: {
-        name: config.providerEnv.CLIENT_123_PATIENT_CAMPAIGN || '',
-        fields: ['patientName', 'shareLink', 'otpCode'],
-      },
-      VIEW_IMAGES_DOCTOR: {
-        name: config.providerEnv.CLIENT_123_DOCTOR_CAMPAIGN || '',
-        fields: ['patientName', 'shareLink', 'otpCode'],
-      },
-    },
-  };
-}
-```
-
-Store the corresponding API key and campaign names in `.env`. Never put real passwords or API keys in source code. Template fields are ordered exactly as the provider expects. Supported values are patientName, centerName, modality, shareLink, otpCode, reportPdfLink, reportFileName, reportStatusId and customerReportId. Missing patientName becomes `Patient`; missing otpCode becomes `Not required`. Change these rules or mappings for a client's actual template.
-
-Restart after code/environment edits, or use `npm run dev` for local source watching. Environment-file changes require a restart even when watching source. Unknown/disabled groups return **503**, so PACS retries instead of sending through another client's provider. Unselected event types are saved as filtered, acknowledged and produce no jobs.
-
-## Implement another provider
-
-For Pinnacle, Ragavs, Celitix or another service:
-
-1. Create `src/services/providers/<provider>.service.js` using that provider's actual API documentation.
-2. Implement `isConfigured(group, eventType)` and `async send(job)` following the AiSensy service's interface.
-3. Register an instance in `src/services/providers/index.js`.
-4. Add an explicit group condition in `src/config/groups.js` selecting that provider and its own credential environment-variable references.
-
-`send(job)` receives the original event, one recipient's mobile/kind, and the saved group configuration. Return `{ status: 'accepted', providerMessageId: ... }` only after API acknowledgement. Do not call it delivered unless you implement provider delivery receipts. For failures, throw ProviderError with a safe code and appropriate retryable/ambiguous flags. Do not put raw provider response text or credentials into error codes or logs.
-
-The AiSensy example follows [its official API campaign contract](https://faq.aisensy.com/api-reference-docs/): POST campaign/t1/api/v2 with apiKey, campaignName, destination, userName, source and templateParams. Configure approved templates and live API campaigns in the client's account. Campaign names are placeholders until supplied by you. Other provider adapters are not included or guessed.
-
-Notifications include the supplied viewing link and OTP through the configured parameters. A SIGNOFF template can include reportPdfLink as text. The code does not download or attach report PDFs; implement that inside the relevant provider service if the client needs actual attachments. The contract requires downloading the link only when sending the file.
-
-## Request and background flow
+## Processing and delivery status
 
 ```text
-PACS → Nginx → route → controller → Basic Auth + HMAC
-    → outbox service → group condition → SQLite transaction → HTTP 200
-    → background worker → notification service → client's provider service
+PACS → Nginx → Basic Auth + HMAC → validate group and event
+     → SQLite transaction → HTTP 200
+     → background worker → MsgClub
 ```
 
-HMAC uses the **original body bytes**, before JSON parsing, with timestamp + '.' + body. Both authentication schemes are required. Timestamps more than 300 seconds in either direction are rejected. The sender generates fresh timestamps; do not disable the replay check for the document's old fixed timestamp.
+Both authentication schemes are checked. HMAC covers the original body bytes, prefixed by the Unix timestamp and `.`. Timestamps more than five minutes away from the server clock are rejected.
 
-Events are deduplicated globally by envelope ID. Repeating an ID for another group returns 409. Recipient mobile numbers are deduplicated per event. The event and all recipient jobs are committed together before 200, and provider calls occur outside the request handler.
+Envelope IDs are deduplicated globally. Reusing an ID for another group returns 409. Recipient numbers are deduplicated per event. All event/jobs are committed before acknowledging PACS; provider calls happen afterward. Unselected event types are acknowledged as filtered and create no jobs.
 
-SQLite lives in **data/backend/outbox.sqlite** by default. It stores original event bodies, recipient numbers and delivery state; it does not store provider secret values. Each event snapshots its group/provider configuration with references to credential variable names. Keep those variable names associated with the same client when rotating secrets. Old jobs keep their original provider/template configuration.
+SQLite lives in `data/backend/outbox.sqlite` by default. It contains original event payloads, recipient numbers and job states. Each event saves a configuration snapshot containing credential variable names, not secret values. Existing historical events keep their original group ID and configuration; changing the current group does not resend or rewrite them. Run only one application process per database.
 
-This is a fresh backend datastore; the previous application's source/data are archived separately and are not automatically imported. Preserve any real delivered-event ledger when planning a production migration, to avoid processing old pushes again. Run only **one application process** per backend database.
+Provider `responseCode: 3001` and its request ID mark a job **accepted**, not delivered. `npm run jobs -- list` includes `provider_message_id` for MsgClub correlation. Delivery receipts are not automatically reconciled into the local job state; inspect MsgClub's recipient-level delivery report for final status and WhatsApp error codes.
+
+Known rate-limit failures retry after approximately 1, 2, 4, 8 and 16 minutes, up to six attempts. Permanent provider errors become failed. Timeouts, uncertain acknowledgements, server errors and interrupted sends become `needs_review` to avoid duplicating messages that may have been accepted.
 
 ## Logs and jobs
 
-JSON logs are written to stdout and daily UTC files **logs/app-YYYY-MM-DD.log**:
+Logs go to stdout and daily UTC files `logs/app-YYYY-MM-DD.log`. They include event/group/job IDs, provider, status, attempt and safe error codes. They exclude patient details, recipient numbers, links, OTPs, auth headers and secrets. Restrict access to the datastore and backups because they contain patient payloads.
 
 ```bash
-tail -f logs/app-$(date -u +%F).log
 npm run jobs -- list
 npm run jobs -- list --status failed
 npm run jobs -- list --status needs_review
 npm run jobs -- retry --id 12
 ```
 
-Log entries include requestId, eventId, groupId, eventType, provider, jobId, attempt, status and errorCode where applicable. Patient details, mobile numbers, viewing/PDF links, OTPs, authentication headers and secrets are excluded. The database still contains patient payloads, so restrict data-directory access and configure your backup/retention policy. Logs have daily files; automatic retention is not implemented.
+For a job in `needs_review`, first inspect the provider record, then pass `--confirm-possible-duplicate` only when a resend is appropriate. Historical jobs retain their saved credential references; review the snapshot before retrying a job from an earlier client configuration.
 
-Known transient provider failures retry after approximately 1, 2, 4, 8 and 16 minutes, up to six attempts. Permanent provider errors become failed. Connection failures, uncertain responses and interrupted sends become needs_review because the provider might already have accepted them. Inspect the provider's records before manually retrying such a job:
-
-```bash
-npm run jobs -- retry --id 12 --confirm-possible-duplicate
-```
-
-PACS's incoming retries are separate: the contract specifies 1, 2, 4, 8, 16, 32 minutes, then hourly, ending at 24 hours. Most 4xx are permanent; 408, 429, 3xx, 5xx and transport failures are retried.
-
-## Deploy and test one real client
-
-1. Copy src/, scripts/, examples/, package.json and the deploy files to `/opt/nandico-addon`. No runtime dependency installation is needed.
-2. Use Node.js 22.13+, a dedicated `nandico` service account, writable data/ and logs/ directories and a private `.env`. Set NODE_ENV=production, ALLOW_DEMO_GROUP=false and the real incoming PACS credentials; configure actual group conditions and provider credentials.
-3. Install [the systemd service](deploy/nandico-addon.service), adjusting its Node path if necessary.
-4. Add [the Nginx location](deploy/nginx.conf) to the existing HTTPS server block. Preserve certificates and use plain proxy_pass without redirects or body changes. Run `nginx -t` before reloading.
-5. On a sender with matching PACS credentials, send to your own test phone:
-
-```bash
-npm run demo -- --url https://addon.nandico.in/outbox \
-  --group ACTUAL_GROUP_ID --to YOUR_10_DIGIT_MOBILE --allow-send
-```
-
-Replace the placeholders. This can send a real WhatsApp notification. Confirm HTTP 200, the correct group/provider logs, accepted job state and the message arriving on your phone.
-
-6. Enable the desired events for a PACS test group, use a study with a patient record and controlled test mobile, and trigger a qualifying event. Allow about a minute for PACS polling.
-
-The backend is deployed at `/opt/nandico-addon` on `addon.nandico.in`, managed by `nandico-addon.service`, with `/outbox` proxied by Nginx. Production disables the simulation group. Group 2396 uses its three provider environment variables and the verified WhatsApp sender. Back up the current code, environment and database before updates; preserve production PACS credentials, `data/` and `logs/`, then restart the service to load the release. Editing a local checkout does not update the running deployment.
-
-For future server setup, [deploy/install.py](deploy/install.py) installs a checksum-verified Node.js 24 runtime when needed, configures the dedicated service user, backs up Nginx configuration, validates the proxy and starts the service. Upload the application and private production `.env` to `/opt/nandico-addon` first, then run the installer as root. The systemd unit expects Node at `/usr/local/bin/node`.
-
-After editing a client on the server, restart and inspect logs:
-
-```bash
-sudo systemctl restart nandico-addon
-sudo systemctl status nandico-addon --no-pager
-sudo journalctl -u nandico-addon -f
-sudo tail -f /var/log/nginx/access.log
-```
-
-Local tests use fake data and mocked provider calls. No real WhatsApp message has been sent. A browser GET to the public `/outbox` returns 405 with `Allow: POST`; this is expected for a POST-only API.
-
-## Verification
+## Verification and controlled sending
 
 ```bash
 npm test
 npm run test:msgclub
 ```
 
-Tests cover authentication, timestamps, exact bytes, schema, all event types, group isolation, concurrent duplicates, durable IDs, missing provider setup, fast acknowledgement, provider error handling, retries, safe startup recovery and log redaction. The MsgClub command also runs the real backend against a local Postman provider simulation using fake credentials; see [group 2396 verification](docs/msgclub-group-2396.md).
+The second command requires Postman CLI 1.70+ and runs the real receiver, authentication, SQLite, worker and adapter against a local MsgClub simulation using fake credentials. It verifies clinical routes, parameter order, duplicate suppression, provider errors, retries, private values and OTP handling. The simulation starts and stops with the command and sends no real WhatsApp messages. Production rejects `ICLOUDSMS_SIMULATION_URL`.
+
+For Postman, import [the local receiver collection](examples/local.postman_collection.json). Configure `basicUser`, `basicPassword` and `hmacSecret` to match `.env`. Its pre-request script signs the exact resolved body with a fresh timestamp. The Ramsnehi request requires `testMobile` and `allowLiveSend=true`; otherwise `pm.execution.skipRequest()` prevents sending. The [provider collection](examples/msgclub.postman_collection.json) defaults to the local simulation with fake credentials.
+
+For an explicitly controlled live test, prepare an event file with current timestamps, real test links and no OTP, then run:
+
+```bash
+npm run send-event -- --url https://addon.nandico.in/outbox \
+  --file YOUR_TEST_EVENT.json --group 48991 --to YOUR_TEST_MOBILE --allow-send
+```
+
+This can send a real message. The helper always requires a controlled ten-digit test number and `--allow-send`. The PACS administrator must enable the required push events for group 48991 on the PACS side.
+
+## Production deployment
+
+The service runs at `/opt/nandico-addon` on `addon.nandico.in`, managed by `nandico-addon.service`, with Nginx proxying `/outbox`. The deployed commit is recorded in `/opt/nandico-addon/REVISION`.
+
+Before updates, back up code, private environment and SQLite. Preserve production incoming credentials, `data/` and `logs/`; update the three group-48991 provider variables, remove obsolete provider/example settings, deploy source files and restart the service. Remove files deleted by the release as well as copying new files. Validate local health and a signed public webhook with no recipients before triggering a real notification.
+
+For initial server setup, [deploy/install.py](deploy/install.py) installs a verified Node.js 24 runtime if needed, configures the dedicated service user, backs up and validates Nginx, and starts the service. Upload the application and private production `.env` first. The service unit expects Node at `/usr/local/bin/node`.
+
+```bash
+sudo systemctl restart nandico-addon
+sudo systemctl status nandico-addon --no-pager
+sudo journalctl -u nandico-addon -f
+```

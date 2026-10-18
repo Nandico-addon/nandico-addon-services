@@ -46,14 +46,7 @@ async function main() {
     event.payload.recipients = [{ mobile, kind: event.type === 'VIEW_IMAGES_DOCTOR' ? 'REFERRING_DOCTOR' : 'PATIENT' }];
   }
   const url = option('--url', 'http://127.0.0.1:3999/outbox');
-  const target = new URL(url);
-  const { loadConfig } = require('../src/config/env');
-  const { getGroupConfig } = require('../src/config/groups');
-  const localDemo = ['127.0.0.1', 'localhost', '[::1]'].includes(target.hostname) &&
-    getGroupConfig(event.groupId, loadConfig())?.provider === 'demo';
-  // Check the actual local routing code, not an assumption that ID 42 will
-  // always remain a demo. Remote targets may have a different configuration.
-  if (!localDemo && (!mobile || !args.includes('--allow-send'))) throw new Error('For a live or remote test, supply your test --to number and --allow-send');
+  if (!mobile || !args.includes('--allow-send')) throw new Error('Supply a controlled test --to number and --allow-send');
   const scenario = option('--scenario', 'valid');
   if (!['valid', 'wrong-basic', 'wrong-hmac', 'tampered-body', 'expired', 'invalid-json'].includes(scenario)) throw new Error('Unknown scenario');
   let raw = Buffer.from(scenario === 'invalid-json' ? '{invalid' : JSON.stringify(event));

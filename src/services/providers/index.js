@@ -1,19 +1,14 @@
 'use strict';
 
-const { DemoProviderService } = require('./demo.service');
-const { AiSensyProviderService } = require('./aisensy.service');
 const { ICloudSmsProviderService } = require('./icloudsms.service');
 const { HttpError } = require('../../utils/errors');
 
 class ProviderRegistry {
   constructor(config, overrides = {}) {
     this.providers = new Map([
-      ['demo', new DemoProviderService(config)],
-      ['aisensy', new AiSensyProviderService(config)],
       ['icloudsms', new ICloudSmsProviderService(config)],
       ...Object.entries(overrides),
     ]);
-    // Add new adapters here, e.g. ['pinnacle', new PinnacleProviderService(config)].
   }
 
   get(name) {

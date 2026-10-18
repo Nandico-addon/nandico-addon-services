@@ -1,24 +1,33 @@
 {
   "id": 4104,
   "type": "SIGNOFF",
-  "groupId": 42,
+  "groupId": 48991,
   "reportStatusId": 987654,
   "createdAt": "2026-10-07 18:35:15",
   "payload": {
     "reportStatusId": 987654,
     "customerReportId": 556677,
-    "patientName": "DEMO PATIENT",
-    "centerName": "DEMO CENTRE",
+    "patientName": "TEST PATIENT",
+    "centerName": "Ramsnehi Hospital",
     "modality": "CT",
-    "shareLink": "https://pacs.example.com/share/?link=demo",
-    "otpCode": "123456",
+    "shareLink": "https://pacs.example.com/share/?link=test",
     "hasReport": true,
-    "reportPdfLink": "https://pacs.example.com/report/demo",
-    "reportFileName": "DEMO.pdf",
+    "reportPdfLink": "https://pacs.example.com/report/test",
+    "reportFileName": "TEST.pdf",
     "recipients": [
-      { "mobile": "9876500001", "kind": "PATIENT" },
-      { "mobile": "9876500002", "kind": "REFERRING_DOCTOR" },
-      { "mobile": "9876500003", "kind": "SHARED" }
-    ]
+      {
+        "mobile": "9876500001",
+        "kind": "PATIENT"
+      },
+      {
+        "mobile": "9876500002",
+        "kind": "REFERRING_DOCTOR"
+      },
+      {
+        "mobile": "9876500003",
+        "kind": "SHARED"
+      }
+    ],
+    "studyCreatedAt": "2026-10-07 18:02:11"
   }
 }
