@@ -1,0 +1,10 @@
+version: 1
+name: krj-hims
+slug: krj-hims
+protocol: http
+port: 4501
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

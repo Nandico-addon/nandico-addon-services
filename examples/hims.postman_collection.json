@@ -1,0 +1,80 @@
+{
+  "info": {
+    "name": "HIMS patient treatment details",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Read-only live check of KRJ HIMS. Defaults to hospital 5, branch 1, 2026-10-15. No credentials were required during the 2026-10-24 check. Assertions follow the observed response structure, not an official vendor contract. The date range applies to TestMastVMs[].Adddate; Appdate can differ. Responses contain patient data: avoid exporting or sharing response bodies. CLI: postman collection run examples/hims.postman_collection.json --timeout-request 30000 --ignore-redirects --no-report-events. Override parameters with --env-var fromDate=YYYY-MM-DD and --env-var toDate=YYYY-MM-DD."
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://api.krjdiagnostics.com/hmserp/api" },
+    { "key": "hospitalId", "value": "5" },
+    { "key": "branchId", "value": "1" },
+    { "key": "fromDate", "value": "2026-10-15" },
+    { "key": "toDate", "value": "2026-10-15" }
+  ],
+  "item": [
+    {
+      "name": "Get patient treatment details",
+      "request": {
+        "method": "GET",
+        "auth": { "type": "noauth" },
+        "header": [ { "key": "Accept", "value": "application/json" } ],
+        "url": "{{baseUrl}}/Patient/GetPatientTreatmentDetails/hospitalId/{{hospitalId}}/branchId/{{branchId}}/FromDate/{{fromDate}}/ToDate/{{toDate}}",
+        "description": "GET with no body. Patient records contain nested TestMastVMs treatment arrays. Empty result arrays are permitted for dates with no data."
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "for (const key of ['hospitalId', 'branchId']) {",
+              "  if (!/^[1-9]\\d*$/.test(String(pm.variables.get(key)))) throw new Error(key + ' must be a positive integer');",
+              "}",
+              "for (const key of ['fromDate', 'toDate']) {",
+              "  const value = String(pm.variables.get(key));",
+              "  const parsed = new Date(value + 'T00:00:00Z');",
+              "  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(value) || !Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) throw new Error(key + ' must be a valid YYYY-MM-DD date');",
+              "}",
+              "if (pm.variables.get('fromDate') > pm.variables.get('toDate')) throw new Error('fromDate must be on or before toDate');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('JSON content type', () => pm.expect(pm.response.headers.get('Content-Type') || '').to.match(/application\\/json/i));",
+              "let rows;",
+              "pm.test('Response is a JSON array', () => { rows = pm.response.json(); pm.expect(Array.isArray(rows)).to.equal(true); });",
+              "if (Array.isArray(rows)) {",
+              "  const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);",
+              "  const hasId = value => (typeof value === 'number' && Number.isFinite(value)) || (typeof value === 'string' && value.trim().length > 0);",
+              "  pm.test('Records contain patient and transaction IDs and treatment arrays', () => {",
+              "    pm.expect(rows.every(row => object(row) && hasId(row.Patientid) && hasId(row.Tranid) && Array.isArray(row.TestMastVMs))).to.equal(true);",
+              "  });",
+              "  const treatments = rows.flatMap(row => object(row) && Array.isArray(row.TestMastVMs) ? row.TestMastVMs : []);",
+              "  pm.test('Treatments contain treatment IDs', () => pm.expect(treatments.every(row => object(row) && hasId(row.Treatmentid))).to.equal(true));",
+              "  pm.test('Treatments match requested hospital', () => pm.expect(treatments.every(row => object(row) && String(row.Hospitalid) === String(pm.variables.get('hospitalId')))).to.equal(true));",
+              "  pm.test('Treatments match requested branch', () => pm.expect(treatments.every(row => object(row) && String(row.Branchid) === String(pm.variables.get('branchId')))).to.equal(true));",
+              "  pm.test('Treatment Adddate values fall within requested dates', () => {",
+              "    const from = String(pm.variables.get('fromDate'));",
+              "    const to = String(pm.variables.get('toDate'));",
+              "    pm.expect(treatments.every(row => {",
+              "      const match = object(row) && /^(\\d{2})\\/(\\d{2})\\/(\\d{4})$/.exec(String(row.Adddate));",
+              "      if (!match) return false;",
+              "      const date = match[3] + '-' + match[2] + '-' + match[1];",
+              "      const parsed = new Date(date + 'T00:00:00Z');",
+              "      return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date && date >= from && date <= to;",
+              "    })).to.equal(true);",
+              "  });",
+              "  console.log('HIMS summary: ' + rows.length + ' records, ' + treatments.length + ' treatments; ' + pm.response.responseTime + ' ms');",
+              "}"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

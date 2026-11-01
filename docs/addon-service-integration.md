@@ -1,5 +1,10 @@
 # Nandico add-on service — receiving pushes from HealerHelper PACS
 
+Receiver update: the 31 October 2026 contract adds `STUDY_UPLOADED`, including
+uploads without a patient record or recipients. This file preserves the older
+three-event reference below. See [the current KRJ flow](krj-hims-integration.md)
+for upload-event handling and the KRJ group-27919 setup.
+
 This is the contract for the service that receives event pushes from the PACS
 server. Everything the receiver needs is in the request body: it never calls
 back into PACS.

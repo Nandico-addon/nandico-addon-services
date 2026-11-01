@@ -1,0 +1,10 @@
+version: 1
+name: pacs-files
+slug: pacs-files
+protocol: http
+port: 4502
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

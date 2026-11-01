@@ -1,0 +1,21 @@
+{
+  "id": 8001,
+  "type": "STUDY_UPLOADED",
+  "groupId": 27919,
+  "reportStatusId": 987654,
+  "createdAt": "2026-10-31 10:00:00",
+  "payload": {
+    "reportStatusId": 987654,
+    "originReferenceId": "SYNTHETIC-0001134",
+    "hasReport": false,
+    "uploadCount": 1,
+    "imageCount": 120,
+    "seriesCount": 3,
+    "firstUploadCompletedAt": "2026-10-31 09:59:00",
+    "lastUploadCompletedAt": "2026-10-31 09:59:00",
+    "reworked": false,
+    "urgent": false,
+    "critical": false,
+    "shareLink": "https://pacs.example.com/share/?link=synthetic-study-token"
+  }
+}

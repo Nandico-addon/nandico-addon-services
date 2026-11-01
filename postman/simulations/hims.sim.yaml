@@ -1,0 +1,7 @@
+simulation: krj-hims
+routing: path
+mocks:
+  - routeKey: krj_hims
+    path: ../mocks/krj-hims/config.yaml
+  - routeKey: pacs
+    path: ../mocks/pacs-files/config.yaml

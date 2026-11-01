@@ -1,0 +1,123 @@
+purpose:
+  stands_in_for: KRJ HIMS upload/report endpoints and PACS PDF downloads.
+  unblocks: Verify the real signed-event receiver, SQLite jobs and refactored KRJ module against local
+    HTTP stand-ins. Legacy evidence and execution notes are preserved in hims.context.md.
+assumptions:
+- id: krj-request-fields
+  status: unknown
+  claim: The deployed HIMS endpoints accept OrderId and ZipFilePath JSON for upload confirmation, and
+    orderId plus multipartFile PDF bytes for report upload.
+  reason: The supplied vendor example and HIMS PDF specify these shapes. The local mock enforces them,
+    but neither a mock nor a passing client test establishes what the deployed vendor endpoint accepts.
+  verification: 'The 2026-10-27 run passed against these stand-ins. On 2026-10-31, krj-folder-refactor
+    reran npm run test:hims: all 8 tests passed and the simulation recorded 21 HTTP events. Both HIMS
+    and PACS-file members served traffic; assertions verified outgoing JSON and actual PDF multipart bytes.
+    No live HIMS write was made. The subsequent center-layout-refactor run on 2026-10-31 also passed all
+    8 HIMS tests with 21 HTTP events after moving source to src/centers/krj and infrastructure to src/shared.
+    Both members again served traffic. The study-uploaded-contract run on 2026-10-31 then passed 12 HIMS
+    checks with 37 HTTP events, including signed Postman collection and CLI inputs, mark-uploaded JSON
+    and report PDF bytes. The source contract now selects STUDY_UPLOADED rather than patient-view events.
+    On 2026-11-01 the group-24564/shareLink run passed 12 checks, including signed CLI and Postman requests
+    and PDF multipart bytes, with 37 HTTP events. A designated live test order is still needed to verify
+    HIMS success.'
+  source: docs/krj-hims-integration.md; src/centers/krj/payload.js; test/centers/krj/simulation.test.js;
+    postman/mocks/krj-hims/default.js; hims.context.md
+  updated_at: '2026-11-01'
+- id: krj-success-acknowledgement
+  status: unknown
+  claim: Successful HIMS writes return empty HTTP 200 acknowledgements.
+  reason: The PDF specifies empty 200 responses and the mock returns them. The actual HIMS response body
+    remains unverified.
+  verification: The 2026-10-27 and 2026-10-31 local runs exercised empty 200 responses, rate limits, server
+    errors and an HTML login response. The worker recorded acceptance, retry, failure or review according
+    to those responses. This establishes client decisions under the modeled responses, not vendor behavior.
+    The center-layout-refactor run on 2026-10-31 exercised these same decisions through the generic center
+    registry with the same outcomes.
+  source: src/centers/krj/provider.js; postman/mocks/krj-hims/default.js; test/centers/krj/simulation.test.js;
+    hims.context.md
+  updated_at: '2026-10-31'
+- id: pacs-zip-field-and-group
+  status: supported
+  claim: KRJ is configured for PACS group 27919 and forwards the full payload.shareLink URL unchanged
+    as HIMS ZipFilePath.
+  reason: The user explicitly confirmed both the real group and the shareLink mapping on 2026-11-01. This
+    establishes the agreed configuration, not whether HIMS treats that URL as an actual ZIP resource.
+    The user subsequently corrected the actual group to 27919 on 2026-11-01; previous group-24564 evidence remains historical.
+  verification: Both the original 2026-10-27 run and krj-folder-refactor on 2026-10-31 used synthetic
+    group 900003 and payload.zipFilePath. These values do not establish deployed configuration; activation
+    still requires the actual values. On 2026-10-31, study-uploaded-contract exercised local group 0 with
+    the provisional field, and verified that an omitted field is saved for review. The actual ZIP source
+    and positive production group remain unresolved. On 2026-11-01 the code, environment examples, fixtures
+    and signed Postman collection were updated to group 24564/shareLink. All 12 HIMS simulation checks
+    passed with 37 HTTP events. The real production PACS report host app.nandico.in was observed in stored
+    events and a PDF GET returned 200/application/pdf with the PDF signature. No HIMS order write was
+    performed for this verification. Release krj-20261101T072856Z was deployed to addon.nandico.in on
+    2026-11-01. Runtime configuration was verified as enabled group 24564, zipField shareLink, events
+    STUDY_UPLOADED/SIGNOFF and report host app.nandico.in. Public authenticated filtered-event and duplicate
+    probes returned 200 without outbound jobs.
+  source: User instruction 2026-11-01; src/centers/krj/config.js; test/centers/krj/simulation.test.js;
+    docs/krj-hims-integration.md; production /opt/nandico-addon/DEPLOYMENT.json; docs/deployments/krj-20261101T072856Z.md
+  updated_at: '2026-11-01'
+- id: pacs-upload-event-after-completion
+  status: unknown
+  claim: PACS emits a patient-view push with upload-completed evidence after the study upload finishes.
+  reason: This historical assumption is no longer relied on. The newer 31 October contract defines a dedicated
+    STUDY_UPLOADED event, and the workflow now ignores both viewing-link event types. Whether patient-view
+    pushes happen after completion is still unestablished and irrelevant to the new path.
+  verification: On 2026-10-31, krj-folder-refactor verified that the moved workflow skips a synthetic
+    registration without completion evidence, suppresses repeated upload confirmation and sends a new
+    report for re-sign-off. Actual PACS event generation, certificate handling and vendor persistence
+    were not tested. The study-uploaded-contract run subsequently verified that viewing-link events remain
+    filtered while dedicated upload events create HIMS jobs.
+  source: src/centers/krj/workflow.js; test/centers/krj/simulation.test.js; docs/krj-hims-integration.md;
+    hims.context.md
+  updated_at: '2026-10-31'
+- id: study-uploaded-source-contract
+  status: supported
+  claim: The supplied 31 October PACS contract defines STUDY_UPLOADED for every completed upload, including
+    re-uploads, later series and merges, with optional patient data and uploadCount capped at 100.
+  reason: This is an explicit promise in the supplied PDF. It supports choosing the new event and accepting
+    absent patient/recipient fields. It does not prove which software version or group event settings
+    are deployed.
+  verification: Read healerhelper-pacs-nandico-addon-contract.pdf on 2026-10-31, SHA256 992a591f182c5df61f17cc7b4a26c384ec16d0f94da386697646d4bd06a943b2.
+    The study-uploaded-contract run verified patient-less and multi-recipient events, same-order re-uploads
+    with new envelope IDs, repeated uploadCount values and the cap of 100. No real PACS event generation
+    was triggered.
+  source: healerhelper-pacs-nandico-addon-contract.pdf, New (31 Oct 2026), Payload and Per type sections;
+    src/centers/krj/workflow.js; src/shared/utils/validation.js; test/centers/krj/simulation.test.js
+  updated_at: '2026-10-31'
+- id: krj-live-deployment
+  status: supported
+  claim: Release krj-20261101T072856Z runs the agreed group-24564 receiver and mapping while preserving
+    existing Ramsnehi credentials and stored work.
+  reason: The staged code passed tests on the live Node runtime, the service restarted healthy, work counts
+    did not decrease, and authenticated public requests exercised group routing, deduplication and authorization.
+    These probes deliberately created no outbound HIMS jobs.
+  verification: 'On 2026-11-01 local health returned 200; signed public KRJ and duplicate requests returned
+    200; a Ramsnehi no-recipient probe returned 200; unknown group returned 503; missing authentication
+    returned 401. All 12 local HIMS integration checks and 9 MsgClub simulation checks passed; 36 backend/unit
+    checks passed, with stand-in tests run separately. HIMS HEAD probes returned 405 with Allow: POST.
+    No live HIMS order success write was attempted because no designated test order/PDF was supplied.'
+  source: docs/deployments/krj-20261101T072856Z.md; production /opt/nandico-addon/DEPLOYMENT.json; test/centers/krj/simulation.test.js
+  updated_at: '2026-11-01'
+fingerprints:
+- id: legacy-hims-simulation
+  date: '2026-10-27'
+  commit: null
+  cli: 1.75.0
+- id: krj-folder-refactor
+  date: '2026-10-31'
+  commit: b3a7b4e8302e1687c5998e7fdcc5ff27f2dd9a0c
+  cli: 1.75.0
+- id: center-layout-refactor
+  date: '2026-10-31'
+  commit: b3a7b4e8302e1687c5998e7fdcc5ff27f2dd9a0c
+  cli: 1.75.0
+- id: study-uploaded-contract
+  date: '2026-10-31'
+  commit: b3a7b4e8302e1687c5998e7fdcc5ff27f2dd9a0c
+  cli: 1.75.0
+- id: krj-24564-sharelink
+  date: '2026-11-01'
+  commit: b3a7b4e8302e1687c5998e7fdcc5ff27f2dd9a0c
+  cli: 1.75.0

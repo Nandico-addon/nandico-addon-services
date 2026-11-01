@@ -1,7 +1,7 @@
 'use strict';
 
-const { loadConfig } = require('../src/config/env');
-const { OutboxRepository } = require('../src/repositories/outbox.repository');
+const { loadConfig } = require('../src/shared/config/env');
+const { OutboxRepository } = require('../src/shared/repositories/outbox.repository');
 
 function main() {
   const args = process.argv.slice(2);

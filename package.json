@@ -9,8 +9,9 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env src/server.js",
     "dev": "node --watch --env-file-if-exists=.env src/server.js",
-    "test": "node --test test/*.test.js",
+    "test": "node --test test/shared/*.test.js test/centers/*/*.test.js",
     "test:msgclub": "node scripts/test-msgclub-simulation.js",
+    "test:hims": "node scripts/test-hims-simulation.js",
     "jobs": "node --env-file-if-exists=.env scripts/jobs.js",
     "send-event": "node --env-file-if-exists=.env scripts/send-event.js"
   }

@@ -1,0 +1,74 @@
+{
+  "info": {
+    "name": "KRJ HIMS upload confirmation and report upload",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Live write requests, skipped by default. Use an approved test order. orderId is the treatment Tranid placed in PACS accession number and returned as payload.originReferenceId. JSON field casing follows the 2026-10-27 vendor example; multipart fields follow HIMS_Integration_APIs.pdf. The vendor certificate currently needs repair; this collection does not disable TLS verification."
+  },
+  "variable": [
+    { "key": "himsBaseUrl", "value": "https://api.krjdiagnostics.com/hmserp/api/Patient" },
+    { "key": "allowLiveHimsWrite", "value": "false" },
+    { "key": "orderId", "value": "" },
+    { "key": "zipFilePath", "value": "" },
+    { "key": "reportFile", "value": "" }
+  ],
+  "auth": { "type": "noauth" },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (String(pm.variables.get('allowLiveHimsWrite')) !== 'true') {",
+          "  pm.execution.skipRequest();",
+          "} else {",
+          "  const orderId = String(pm.variables.get('orderId') || '');",
+          "  if (!orderId.trim() || /[\\r\\n\\0]/.test(orderId)) throw new Error('Supply a controlled test orderId');",
+          "  if (pm.info.requestName === 'Mark uploaded') {",
+          "    const zipFilePath = String(pm.variables.get('zipFilePath') || '');",
+          "    if (!zipFilePath.trim()) throw new Error('Supply the actual ZIP link/path');",
+          "    pm.variables.set('markUploadedBody', JSON.stringify({ OrderId: orderId, ZipFilePath: zipFilePath }));",
+          "  }",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test('HTTP 200 acknowledgement', () => pm.response.to.have.status(200));",
+          "pm.test('Documented empty response body', () => pm.expect(pm.response.text().trim()).to.equal(''));"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Mark uploaded",
+      "request": {
+        "method": "POST",
+        "url": "{{himsBaseUrl}}/mark-uploaded",
+        "header": [ { "key": "Content-Type", "value": "application/json" } ],
+        "body": { "mode": "raw", "raw": "{{markUploadedBody}}", "options": { "raw": { "language": "json" } } },
+        "description": "OrderId comes from payload.originReferenceId. ZipFilePath is the confirmed actual path or link, not a fabricated path. The vendor's supplied example is /PdfDocuments/1134/1134.pdf."
+      }
+    },
+    {
+      "name": "Send report PDF",
+      "request": {
+        "method": "POST",
+        "url": "{{himsBaseUrl}}/send-report",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "orderId", "type": "text", "value": "{{orderId}}" },
+            { "key": "multipartFile", "type": "file", "src": "{{reportFile}}", "contentType": "application/pdf" }
+          ]
+        },
+        "description": "Select a local PDF in multipartFile, or set reportFile to its local path. A remote reportPdfLink must be downloaded first; placing a URL in the file field does not send PDF bytes. Postman generates the multipart boundary."
+      }
+    }
+  ]
+}

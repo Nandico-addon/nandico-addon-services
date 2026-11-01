@@ -1,0 +1,27 @@
+[ris]
+CT={"port": 8888}
+MR={"port": 2035}
+US={"port": 2034}
+DX={"port": 2036}
+MG={"port": 2037}
+
+[krj]
+base_url=https://api.krjdiagnostics.com/hmserp/api
+hospital_id=5
+branch_id=1
+timeout_seconds=20
+; Temporary KRJ certificate exception. Set false after the vendor fixes HTTPS.
+allow_invalid_tls=true
+
+[dicom]
+host=0.0.0.0
+ae_title=KRJ_MWL
+
+[categories]
+SONOGRAPHY=US
+DOPPLER=US
+MRI=MR
+CTSCAN=CT
+X-RAY=DX
+MAMMOGRAPHY=MG
+MAMMOGRAM=MG

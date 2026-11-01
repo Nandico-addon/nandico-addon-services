@@ -1,0 +1,37 @@
+purpose:
+  stands_in_for: MsgClub/iCloudSMS sending for Ramsnehi Hospital and isolated test centers.
+  unblocks: >-
+    Verify authenticated PACS events through shared persistence, worker and
+    reusable MsgClub HTTP code while center configuration lives under src/centers.
+
+assumptions:
+  - id: msgclub-template-acceptance
+    status: unknown
+    claim: >-
+      Real MsgClub accepts requests constructed from the account's approved
+      templates and returns responseCode 3001 with a nonblank request ID.
+    reason: >-
+      The local mock was built from the previously inspected account contract.
+      Its responses establish client behavior under that model, not current
+      provider acceptance or recipient delivery. No owner-published mock was
+      used; the prior contract work was done while Postman CLI was signed out.
+    verification: >-
+      On 2026-10-31, center-layout-refactor ran npm run test:msgclub. All 9 tests
+      passed and the simulation recorded 33 HTTP events. The MsgClub member
+      served traffic. Assertions covered actual request bodies, configuration
+      isolation across test centers, persisted routing snapshots, duplicates,
+      provider acknowledgements and failure/review decisions. No live WhatsApp
+      messages were sent. The working tree contained uncommitted center layout
+      changes; the fingerprint commit identifies its base revision only.
+    source: >-
+      docs/msgclub-group-48991.md; test/centers/ramsnehi/simulation.test.js;
+      src/centers/ramsnehi/workflow.js;
+      src/shared/integrations/whatsapp/msgclub/provider.js;
+      postman/mocks/msgclub/default.js
+    updated_at: "2026-10-31"
+
+fingerprints:
+  - id: center-layout-refactor
+    date: "2026-10-31"
+    commit: b3a7b4e8302e1687c5998e7fdcc5ff27f2dd9a0c
+    cli: "1.75.0"

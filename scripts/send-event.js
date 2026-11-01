@@ -39,14 +39,26 @@ async function main() {
   const event = JSON.parse(fs.readFileSync(option('--file', path.join(__dirname, '../examples/signoff.json')), 'utf8'));
   event.id = Number(option('--id', Date.now()));
   event.groupId = Number(option('--group', event.groupId));
-  if (![event.id, event.groupId].every((id) => Number.isSafeInteger(id) && id > 0)) throw new Error('Event and group IDs must be positive integers');
+  const url = option('--url', 'http://127.0.0.1:3999/outbox');
+  const target = new URL(url);
+  const local = ['127.0.0.1', 'localhost', '[::1]'].includes(target.hostname);
+  if (!Number.isSafeInteger(event.id) || event.id <= 0 || !Number.isSafeInteger(event.groupId) ||
+      event.groupId < 0 || (event.groupId === 0 && !local)) throw new Error('Use positive IDs; placeholder group 0 is local only');
   const mobile = option('--to', '');
   if (mobile) {
     if (!/^[6-9][0-9]{9}$/.test(mobile)) throw new Error('--to must be a ten-digit Indian mobile number');
     event.payload.recipients = [{ mobile, kind: event.type === 'VIEW_IMAGES_DOCTOR' ? 'REFERRING_DOCTOR' : 'PATIENT' }];
   }
-  const url = option('--url', 'http://127.0.0.1:3999/outbox');
-  if (!mobile || !args.includes('--allow-send')) throw new Error('Supply a controlled test --to number and --allow-send');
+  const hims = args.includes('--hims');
+  if (hims) {
+    const group = require('../src/centers').getGroupConfig(event.groupId, { providerEnv: process.env });
+    if (!group || group.provider !== 'krj_hims' || group.enabled === false) throw new Error('--hims requires the configured KRJ group');
+    if (!['STUDY_UPLOADED', 'SIGNOFF'].includes(event.type)) throw new Error('HIMS tests require STUDY_UPLOADED or SIGNOFF');
+    const orderId = option('--order-id', event.payload.originReferenceId);
+    if (typeof orderId !== 'string' || !orderId.trim()) throw new Error('Supply a controlled HIMS order reference in the payload or --order-id');
+    event.payload.originReferenceId = orderId;
+  }
+  if ((!hims && !mobile) || !args.includes('--allow-send')) throw new Error('Supply --allow-send and either --hims or a controlled --to number');
   const scenario = option('--scenario', 'valid');
   if (!['valid', 'wrong-basic', 'wrong-hmac', 'tampered-body', 'expired', 'invalid-json'].includes(scenario)) throw new Error('Unknown scenario');
   let raw = Buffer.from(scenario === 'invalid-json' ? '{invalid' : JSON.stringify(event));

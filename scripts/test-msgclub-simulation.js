@@ -40,7 +40,7 @@ async function main() {
   try {
     await started;
     clearTimeout(timeout);
-    const tests = spawn(process.execPath, ['--test', 'test/msgclub-simulation.test.js'], {
+    const tests = spawn(process.execPath, ['--test', 'test/centers/ramsnehi/simulation.test.js'], {
       cwd: root, stdio: 'inherit', env: { ...process.env,
         ICLOUDSMS_SIMULATION_URL: `http://127.0.0.1:${port}/icloudsms/rest/services/sendSMS/v2/sendtemplate` },
     });
