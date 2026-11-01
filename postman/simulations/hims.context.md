@@ -65,3 +65,5 @@ sent re-sign-off reports, and preserved failure/review decisions. All checks pas
 <!-- end:observations -->
 
 2026-11-01 (group correction): the user corrected KRJ's actual group to 27919. Current configuration, examples and tests use 27919; the group-24564 entries above describe earlier verification. Historical accepted events and jobs are retained.
+
+2026-11-01 (group 27919 live): revision 962672fccf5016e7fe9d279ff196855b472842d2 passed 36 backend, 12 HIMS and 9 MsgClub checks and was deployed as krj-27919-20261101T090606Z. Public KRJ filtered/duplicate and Ramsnehi no-recipient checks passed with zero outbound jobs; old group 24564 returns 503. All previous events/jobs and other environment settings were preserved. Python worklist source was committed to GitHub but excluded from deployment. See docs/deployments/krj-27919-20261101T090606Z.md.

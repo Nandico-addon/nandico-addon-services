@@ -100,6 +100,13 @@ assumptions:
     No live HIMS order success write was attempted because no designated test order/PDF was supplied.'
   source: docs/deployments/krj-20261101T072856Z.md; production /opt/nandico-addon/DEPLOYMENT.json; test/centers/krj/simulation.test.js
   updated_at: '2026-11-01'
+- id: krj-27919-live-correction
+  status: supported
+  claim: Release krj-27919-20261101T090606Z accepts KRJ group 27919 while preserving Ramsnehi group 48991 and historical work.
+  reason: The user corrected the group ID; the staged and deployed configuration, public signed probes, file hashes, saved event bodies and job routes were verified. The independent Python source was excluded from this server release.
+  verification: On 2026-11-01, 36 local backend checks, 12 HIMS simulation checks and 9 MsgClub checks passed. Staged server tests and both production provider validations passed. The live service returned local health 200, signed KRJ filtered 200, duplicate 200, Ramsnehi no-recipient 200, old-group 503 and unauthenticated 401. Both probes created zero outbound jobs. All 660 existing event bodies and 655 job identities/routes were preserved. Actual group-27919 business writes remain to be checked with a controlled PACS case.
+  source: docs/deployments/krj-27919-20261101T090606Z.md; production /opt/nandico-addon/DEPLOYMENT.json; test/centers/krj/simulation.test.js
+  updated_at: '2026-11-01'
 fingerprints:
 - id: legacy-hims-simulation
   date: '2026-10-27'
@@ -120,4 +127,8 @@ fingerprints:
 - id: krj-24564-sharelink
   date: '2026-11-01'
   commit: b3a7b4e8302e1687c5998e7fdcc5ff27f2dd9a0c
+  cli: 1.75.0
+- id: krj-27919-live
+  date: '2026-11-01'
+  commit: 962672fccf5016e7fe9d279ff196855b472842d2
   cli: 1.75.0
