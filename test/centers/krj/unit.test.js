@@ -19,12 +19,13 @@ function event(id, type = 'STUDY_UPLOADED') {
   return { id, groupId: group.groupId, type, reportStatusId: 987654, payload: {
     reportStatusId: 987654, customerReportId: type === 'SIGNOFF' ? 556677 : undefined, hasReport: type === 'SIGNOFF', originReferenceId: '0001134',
     shareLink: 'https://pacs.example.com/share/?link=synthetic-0001134',
+    ftpPath: 'prod/zip-backup-new/synthetic/2026/11/26/987654_SYNTHETIC.zip',
     reportPdfLink: type === 'SIGNOFF' ? 'https://pacs.example.com/report.pdf' : undefined,
     reportStatusDetails: { lastUploadCompletedAt: '2026-10-27 10:00:00' },
   } };
 }
 
-test('KRJ defaults to active group 27919 and the agreed shareLink mapping', () => {
+test('KRJ defaults to active group 27919 and the agreed ftpPath mapping', () => {
   assert.equal(krjConfig({}).groupId, 27919);
   assert.equal(krjConfig({}).enabled, true);
   assert.equal(krjConfig({ NODE_ENV: 'production' }).enabled, true);
@@ -37,7 +38,9 @@ test('KRJ defaults to active group 27919 and the agreed shareLink mapping', () =
   for (const id of ['48991', '-1', 'wrong', '9007199254740992']) {
     assert.throws(() => krjConfig({ HIMS_KRJ_GROUP_ID: id }));
   }
-  assert.equal(krjConfig({ HIMS_KRJ_GROUP_ID: '900003' }).zipField, 'shareLink');
+  assert.equal(krjConfig({ HIMS_KRJ_GROUP_ID: '900003' }).zipField, 'ftpPath');
+  assert.equal(group.allowPatientlessSignoff, true);
+  assert.equal(getGroupConfig(48991).allowPatientlessSignoff, undefined);
   assert.equal(krjConfig({ HIMS_KRJ_ZIP_FIELD: 'files.zipPath' }).zipField, 'files.zipPath');
   const config = loadConfig({ BASIC_PASSWORD: 'test-password', HMAC_SECRET: 'test-secret',
     HIMS_KRJ_GROUP_ID: '900003' });
@@ -73,15 +76,29 @@ test('saved local group-0 jobs cannot dispatch after a production restart', asyn
   });
 });
 
-test('order references preserve leading zeros and shareLink is forwarded as the HIMS ZIP value', () => {
+test('order references preserve leading zeros and ftpPath is forwarded without a shareLink fallback', () => {
   const upload = event(7);
   assert.equal(himsOrderId(upload), '0001134');
   upload.payload.delivery = { archivePath: '/incoming/0001134.zip' };
   assert.equal(himsZipFilePath(upload, { zipField: 'delivery.archivePath' }), '/incoming/0001134.zip');
-  assert.equal(himsZipFilePath(upload, group), upload.payload.shareLink);
-  delete upload.payload.shareLink;
+  assert.equal(himsZipFilePath(upload, group), upload.payload.ftpPath);
+  assert.equal(himsZipFilePath(upload, { zipField: 'shareLink' }), upload.payload.shareLink);
+  delete upload.payload.ftpPath;
   upload.payload.reportPdfLink = 'https://pacs.example.com/report.pdf';
   assert.throws(() => himsZipFilePath(upload, group), { code: 'HIMS_ZIP_PATH_REQUIRED', requiresReview: true });
+});
+
+test('only opted-in SIGNOFF permits absent customerReportId; invalid IDs and view events stay rejected', () => {
+  const report = event(9, 'SIGNOFF'); delete report.payload.customerReportId;
+  assert.throws(() => validateEnvelope(report), { code: 'INVALID_EVENT' });
+  assert.equal(validateEnvelope(report, { allowPatientlessSignoff: true }), report);
+  for (const value of [null, 0, -1, '556677']) {
+    report.payload.customerReportId = value;
+    assert.throws(() => validateEnvelope(report, { allowPatientlessSignoff: true }), { code: 'INVALID_EVENT' });
+  }
+  delete report.payload.customerReportId;
+  report.type = 'VIEW_IMAGES_PATIENT';
+  assert.throws(() => validateEnvelope(report, { allowPatientlessSignoff: true }), { code: 'INVALID_EVENT' });
 });
 
 test('legacy KRJ configuration without centerId still selects the HIMS workflow', () => {

@@ -63,8 +63,8 @@ PACS → shared authentication and validation → center selected by group ID
 Each group currently selects one provider. Ramsnehi creates one job per unique
 recipient. KRJ creates an upload-confirmation for STUDY_UPLOADED or a report job for
 SIGNOFF, independently of notification recipients. Repeated envelope IDs are
-deduplicated, while new re-upload IDs create new jobs. KRJ group 27919 maps `originReferenceId` to HIMS `OrderId` and the full
-`shareLink` to HIMS `ZipFilePath`. Group 0 is a non-production test override. A center needing both HIMS and WhatsApp still needs
+deduplicated, while new re-upload IDs create new jobs. KRJ group 27919 maps `originReferenceId` to HIMS `OrderId` and
+`ftpPath` to HIMS `ZipFilePath`. Group 0 is a non-production test override. A center needing both HIMS and WhatsApp still needs
 an explicit multi-provider workflow.
 
 Provider adapters implement `isConfigured(group, eventType)` and

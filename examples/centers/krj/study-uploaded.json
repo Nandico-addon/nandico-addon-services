@@ -16,6 +16,6 @@
     "reworked": false,
     "urgent": false,
     "critical": false,
-    "shareLink": "https://pacs.example.com/share/?link=synthetic-study-token"
+    "ftpPath": "prod/zip-backup-new/synthetic/2026/11/26/987654_SYNTHETIC.zip"
   }
 }

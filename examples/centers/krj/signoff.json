@@ -6,13 +6,13 @@
   "createdAt": "2026-10-31 10:10:00",
   "payload": {
     "reportStatusId": 987654,
-    "customerReportId": 556677,
     "originReferenceId": "SYNTHETIC-0001134",
     "hasReport": true,
     "reportPdfLink": "https://pacs.example.com/rd/all/synthetic-report-token",
     "reportFileName": "synthetic-report.pdf",
     "reworked": false,
     "urgent": false,
-    "critical": false
+    "critical": false,
+    "ftpPath": "prod/zip-backup-new/synthetic/2026/11/26/987654_SYNTHETIC.zip"
   }
 }

@@ -6,16 +6,17 @@ mapping and HTTP implementation are together in this folder.
 ```text
 krj/
   index.js       Center module and HIMS provider registration
-  config.js      Group 27919, shareLink mapping and environment settings
+  config.js      Group 27919, ftpPath mapping and environment settings
   workflow.js    STUDY_UPLOADED/SIGNOFF actions, deduplicated by envelope ID
   payload.js     Accession-to-order mapping, JSON body and multipart form
   provider.js    HIMS endpoints, PDF download, TLS and acknowledgement handling
 ```
 
 KRJ uses PACS group **27919**. `STUDY_UPLOADED` calls mark-uploaded with
-`payload.originReferenceId` as `OrderId` and the full `payload.shareLink` as
+`payload.originReferenceId` as `OrderId` and `payload.ftpPath` as
 `ZipFilePath`. `SIGNOFF` downloads `payload.reportPdfLink` and uploads PDF bytes
-for the same order. These mappings were confirmed by the user on 1 November.
+for the same order, including SIGNOFF without a patient record or recipients.
+The FTP mapping and patient-less sign-off contract were confirmed on 26 November.
 Missing downstream values are retained as review jobs without dropping events.
 
 The independent scanner-side worklist code is in `fetch worklist code/`, using

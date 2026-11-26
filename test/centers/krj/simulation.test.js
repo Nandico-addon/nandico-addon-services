@@ -41,6 +41,7 @@ test('signed PACS pushes run through SQLite and the worker to real HIMS and file
       hasReport: type === 'SIGNOFF',
       reportPdfLink: type === 'SIGNOFF' ? origin + '/pacs/report.pdf' : undefined,
       shareLink: 'https://pacs.example.com/share/?link=synthetic-study-token',
+      ftpPath: 'prod/zip-backup-new/synthetic/2026/11/26/987654_SYNTHETIC.zip',
       reportStatusDetails: { lastUploadCompletedAt: '2026-10-27 09:59:00', shareLink: 'token-not-a-url' },
     },
   });
@@ -60,6 +61,7 @@ test('signed PACS pushes run through SQLite and the worker to real HIMS and file
   await t.test('STUDY_UPLOADED without a patient sends one JSON action per envelope, including re-uploads', async () => {
     const before = (await calls()).length;
     const value = makeEvent(7001);
+    delete value.payload.shareLink;
     assert.equal((await post(value)).status, 200); await settled();
     assert.equal((await post(value)).status, 200);
     // Rollback retry can carry the same uploadCount with a new envelope ID.
@@ -67,7 +69,7 @@ test('signed PACS pushes run through SQLite and the worker to real HIMS and file
     const outgoing = (await calls()).slice(before);
     assert.equal(outgoing.length, 2);
     assert.ok(outgoing.every(call => call.path.endsWith('/mark-uploaded')));
-    assert.deepEqual(outgoing[0].body, { OrderId: 'SYNTHETIC-0001134', ZipFilePath: value.payload.shareLink });
+    assert.deepEqual(outgoing[0].body, { OrderId: 'SYNTHETIC-0001134', ZipFilePath: value.payload.ftpPath });
     assert.equal(app.repository.listJobs()[0].status, 'accepted');
   });
   await t.test('viewing-link notifications do not call HIMS even with nested upload timestamps', async () => {
@@ -109,7 +111,7 @@ test('signed PACS pushes run through SQLite and the worker to real HIMS and file
     const before = (await calls()).length;
     for (const [id, type, field, code] of [
       [7020, 'STUDY_UPLOADED', 'originReferenceId', 'HIMS_ORDER_ID_REQUIRED'],
-      [7021, 'STUDY_UPLOADED', 'shareLink', 'HIMS_ZIP_PATH_REQUIRED'],
+      [7021, 'STUDY_UPLOADED', 'ftpPath', 'HIMS_ZIP_PATH_REQUIRED'],
       [7022, 'SIGNOFF', 'reportPdfLink', 'HIMS_REPORT_REQUIRED'],
     ]) {
       const value = makeEvent(id, type); delete value.payload[field];
@@ -119,6 +121,37 @@ test('signed PACS pushes run through SQLite and the worker to real HIMS and file
       assert.equal(job.status, 'needs_review'); assert.equal(job.error_code, code);
     }
     assert.equal((await calls()).length, before);
+  });
+  await t.test('patient-less SIGNOFF sends a PDF independently of a failed mark-uploaded job', async () => {
+    const before = (await calls()).length;
+    const upload = makeEvent(7026);
+    delete upload.payload.ftpPath; delete upload.payload.shareLink;
+    assert.equal((await post(upload)).status, 200); await settled();
+    const report = makeEvent(7027, 'SIGNOFF');
+    delete report.payload.customerReportId; delete report.payload.shareLink;
+    delete report.payload.ftpPath;
+    assert.equal((await post(report)).status, 200); await settled();
+    assert.equal((await post(report)).status, 200);
+    const jobs = app.repository.listJobs();
+    assert.equal(jobs.find(job => job.event_id === upload.id).error_code, 'HIMS_ZIP_PATH_REQUIRED');
+    assert.equal(jobs.find(job => job.event_id === report.id).status, 'accepted');
+    const outgoing = (await calls()).slice(before);
+    assert.equal(outgoing.length, 1);
+    assert.equal(outgoing[0].orderId, report.payload.originReferenceId);
+    assert.equal(outgoing[0].pdfHeader, '%PDF-');
+    const otherCenter = { ...report, id: 7028, groupId: 48991 };
+    assert.equal((await post(otherCenter)).status, 400);
+  });
+  await t.test('historical queued jobs retain their saved shareLink mapping', async () => {
+    const before = (await calls()).length;
+    const value = makeEvent(7029);
+    const historical = { ...require('../../../src/centers/krj').krjConfig({}), zipField: 'shareLink' };
+    app.repository.accept(value, historical, Buffer.from(JSON.stringify(value)), 'historical-snapshot-test');
+    await settled();
+    const outgoing = (await calls()).slice(before);
+    assert.equal(outgoing.length, 1);
+    assert.equal(outgoing[0].body.ZipFilePath, value.payload.shareLink);
+    assert.equal(app.repository.listJobs().find(job => job.event_id === value.id).status, 'accepted');
   });
   await t.test('malformed upload counters and recipient data are rejected before acknowledgement', async () => {
     for (const [index, field, invalid] of [[0, 'uploadCount', 101], [1, 'imageCount', -1], [2, 'seriesCount', '3']]) {
@@ -174,7 +207,7 @@ test('signed PACS pushes run through SQLite and the worker to real HIMS and file
       '--env-var', `baseUrl=http://127.0.0.1:${address.port}`,
       '--env-var', `basicPassword=${credentials.password}`, '--env-var', `hmacSecret=${credentials.secret}`,
       '--env-var', 'allowHimsSend=true', '--env-var', 'orderId=SYNTHETIC-POSTMAN-0001134',
-      '--env-var', 'shareLink=https://pacs.example.com/share/?link=postman-test', '--env-var', `reportPdfLink=${origin}/pacs/report.pdf`,
+      '--env-var', 'ftpPath=prod/zip-backup-new/synthetic/postman-test.zip', '--env-var', `reportPdfLink=${origin}/pacs/report.pdf`,
       '--timeout-request', '10000', '--ignore-redirects', '--no-report-events'], {
       cwd: path.join(__dirname, '../../..'), timeout: 30000,
     });

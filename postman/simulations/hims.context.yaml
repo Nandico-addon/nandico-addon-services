@@ -38,8 +38,8 @@ assumptions:
   updated_at: '2026-10-31'
 - id: pacs-zip-field-and-group
   status: supported
-  claim: KRJ is configured for PACS group 27919 and forwards the full payload.shareLink URL unchanged
-    as HIMS ZipFilePath.
+  claim: The 1 November configuration used PACS group 27919 and forwarded payload.shareLink unchanged
+    as HIMS ZipFilePath. This historical mapping was superseded by ftpPath on 26 November.
   reason: The user explicitly confirmed both the real group and the shareLink mapping on 2026-11-01. This
     establishes the agreed configuration, not whether HIMS treats that URL as an actual ZIP resource.
     The user subsequently corrected the actual group to 27919 on 2026-11-01; previous group-24564 evidence remains historical.
@@ -107,7 +107,18 @@ assumptions:
   verification: On 2026-11-01, 36 local backend checks, 12 HIMS simulation checks and 9 MsgClub checks passed. Staged server tests and both production provider validations passed. The live service returned local health 200, signed KRJ filtered 200, duplicate 200, Ramsnehi no-recipient 200, old-group 503 and unauthenticated 401. Both probes created zero outbound jobs. All 660 existing event bodies and 655 job identities/routes were preserved. Actual group-27919 business writes remain to be checked with a controlled PACS case.
   source: docs/deployments/krj-27919-20261101T090606Z.md; production /opt/nandico-addon/DEPLOYMENT.json; test/centers/krj/simulation.test.js
   updated_at: '2026-11-01'
+- id: krj-20261126-ftp-and-patientless-signoff
+  status: supported
+  claim: KRJ maps payload.ftpPath to HIMS ZipFilePath and accepts SIGNOFF without customerReportId or recipients; failed upload confirmation does not block report dispatch.
+  reason: The user confirmed ftpPath on 26 November and the supplied new PACS contract permits patient-less SIGNOFF. Local HTTP simulations demonstrate the receiver behavior, not deployed PACS generation or HIMS persistence.
+  verification: On 2026-11-26, npm test passed 37 checks with 6 simulation wrappers skipped; test:hims passed 14 checks with 44 HTTP events; test:msgclub passed 9 checks with 33 HTTP events. Real signed requests traversed SQLite and the worker to the existing contract-based HIMS and PACS PDF stand-ins. Checks covered ftpPath without shareLink, patient-less SIGNOFF after a failed upload, PDF multipart bytes, duplicate suppression, historical shareLink job snapshots, and unchanged Ramsnehi validation. No live business writes or historical resends were made. Local CLI 1.75.0 does not support postman status; its signed-out collection runs succeeded locally without cloud publishing.
+  source: PACS-addon-integration-contract-2026-11-26.pdf; docs/krj-hims-integration.md; src/centers/krj/config.js; src/shared/utils/validation.js; src/shared/services/outbox.service.js; test/centers/krj/simulation.test.js
+  updated_at: '2026-11-26'
 fingerprints:
+- id: krj-20261126-ftp-and-patientless-signoff
+  date: '2026-11-26'
+  commit: 5915a68168c3234bce11779bfc86773cb2e54a79 # Dirty tree: FTP mapping and scoped SIGNOFF validation changes.
+  cli: 1.75.0
 - id: legacy-hims-simulation
   date: '2026-10-27'
   commit: null

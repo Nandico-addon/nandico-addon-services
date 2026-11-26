@@ -2,7 +2,7 @@
   "info": {
     "name": "KRJ PACS outbox \u2014 upload and sign-off",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Signed PACS events for KRJ group 27919. originReferenceId maps to HIMS OrderId; payload.shareLink maps to HIMS ZipFilePath. SIGNOFF downloads reportPdfLink and uploads PDF bytes. Skipped until allowHimsSend=true."
+    "description": "Signed PACS events for KRJ group 27919. originReferenceId maps to HIMS OrderId; payload.ftpPath maps to HIMS ZipFilePath. SIGNOFF downloads reportPdfLink and uploads PDF bytes. Skipped until allowHimsSend=true."
   },
   "auth": {
     "type": "basic",
@@ -49,7 +49,7 @@
       "value": ""
     },
     {
-      "key": "shareLink",
+      "key": "ftpPath",
       "value": ""
     },
     {
@@ -80,13 +80,13 @@
           "  const now = new Date(Date.now() + 330 * 60000).toISOString().slice(0, 19).replace('T', ' ');",
           "  const payload = { reportStatusId: 987654, originReferenceId: orderId, hasReport: type === 'SIGNOFF', reworked: false, urgent: false, critical: false };",
           "  if (type === 'STUDY_UPLOADED') {",
-          "    const shareLink = String(pm.variables.get('shareLink') || '');",
-          "    if (!shareLink.trim()) throw new Error('Set the PACS study shareLink for this test');",
-          "    Object.assign(payload, { shareLink, uploadCount: 1, imageCount: 120, seriesCount: 3, firstUploadCompletedAt: now, lastUploadCompletedAt: now });",
+          "    const ftpPath = String(pm.variables.get('ftpPath') || '');",
+          "    if (!ftpPath.trim()) throw new Error('Set the PACS study ftpPath for this test');",
+          "    Object.assign(payload, { ftpPath, uploadCount: 1, imageCount: 120, seriesCount: 3, firstUploadCompletedAt: now, lastUploadCompletedAt: now });",
           "  } else {",
           "    const reportPdfLink = String(pm.variables.get('reportPdfLink') || '');",
           "    if (!reportPdfLink.trim()) throw new Error('Set a downloadable PDF URL allowed by HIMS_KRJ_REPORT_HOSTS');",
-          "    Object.assign(payload, { customerReportId: 556677, reportPdfLink, reportFileName: 'test-report.pdf' });",
+          "    Object.assign(payload, { reportPdfLink, reportFileName: 'test-report.pdf' });",
           "  }",
           "  const raw = JSON.stringify({ id: Date.now(), type, groupId, reportStatusId: 987654, createdAt: now, payload });",
           "  const timestamp = String(Math.floor(Date.now() / 1000));",

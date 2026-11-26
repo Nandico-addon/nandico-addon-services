@@ -10,14 +10,15 @@ function parseJson(raw) {
   catch { throw new HttpError(400, 'INVALID_JSON', 'Body must be valid UTF-8 JSON'); }
 }
 
-function validateEnvelope(event, { allowPlaceholderGroup = false } = {}) {
+function validateEnvelope(event, { allowPlaceholderGroup = false, allowPatientlessSignoff = false } = {}) {
   const fail = () => { throw new HttpError(400, 'INVALID_EVENT', 'Invalid PACS envelope or payload'); };
   if (!event || typeof event !== 'object' || Array.isArray(event) || !positiveId(event.id) ||
       !(positiveId(event.groupId) || (allowPlaceholderGroup && event.groupId === 0)) ||
       !positiveId(event.reportStatusId) || !EVENT_TYPES.includes(event.type)) fail();
   const p = event.payload;
   if (!p || typeof p !== 'object' || Array.isArray(p) || p.reportStatusId !== event.reportStatusId ||
-      (p.customerReportId !== undefined ? !positiveId(p.customerReportId) : event.type !== 'STUDY_UPLOADED') ||
+      (p.customerReportId !== undefined ? !positiveId(p.customerReportId) :
+        event.type !== 'STUDY_UPLOADED' && !(event.type === 'SIGNOFF' && allowPatientlessSignoff)) ||
       typeof p.hasReport !== 'boolean') fail();
   if (event.type === 'SIGNOFF' && !p.hasReport) fail();
   for (const field of ['patientName', 'centerName', 'modality', 'studyCreatedAt', 'shareId', 'shareLink', 'otpCode', 'reportPdfLink', 'reportFileName', 'originReferenceId']) {
@@ -40,7 +41,7 @@ function validateEnvelope(event, { allowPlaceholderGroup = false } = {}) {
       catch { fail(); }
     }
   }
-  // Optional fields may be omitted. A valid event with no recipients creates no jobs.
+  // Recipient-free events remain valid; the center workflow decides what jobs to create.
   if (p.recipients !== undefined) {
     if (!Array.isArray(p.recipients) || p.recipients.some((r) => !r || typeof r.mobile !== 'string' ||
         !/^[6-9][0-9]{9}$/.test(r.mobile) || !KINDS.includes(r.kind))) fail();

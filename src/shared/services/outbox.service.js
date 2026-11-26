@@ -11,7 +11,13 @@ class OutboxService {
   }
 
   receive(rawBody, context) {
-    const event = validateEnvelope(parseJson(rawBody), { allowPlaceholderGroup: !this.groupRouter.config.production });
+    const candidate = parseJson(rawBody);
+    // The center owns ingress exceptions; existing centers keep their requirements.
+    const validationGroup = this.groupRouter.lookup(candidate?.groupId, this.groupRouter.config);
+    const event = validateEnvelope(candidate, {
+      allowPlaceholderGroup: !this.groupRouter.config.production,
+      allowPatientlessSignoff: validationGroup?.allowPatientlessSignoff === true,
+    });
     Object.assign(context, { eventId: event.id, groupId: event.groupId, eventType: event.type });
     const previous = this.repository.findEvent(event.id);
     if (previous) return this.duplicate(previous.group_id !== event.groupId, event, context);

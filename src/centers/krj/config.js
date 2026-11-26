@@ -1,7 +1,7 @@
 'use strict';
 
 // KRJ activation and client policy live beside its workflow and HTTP adapter.
-// KRJ's production PACS group and the agreed mark-uploaded link mapping.
+// KRJ's production PACS group and the agreed mark-uploaded FTP mapping.
 // Explicit group 0 remains available only for isolated legacy local tests.
 function krjConfig(env) {
   const configuredId = String(env.HIMS_KRJ_GROUP_ID ?? '27919');
@@ -9,7 +9,7 @@ function krjConfig(env) {
   if (!/^(0|[1-9]\d*)$/.test(configuredId) || !Number.isSafeInteger(groupId) || groupId === 48991) {
     throw new Error('HIMS_KRJ_GROUP_ID must be 0 (placeholder) or a distinct positive PACS group ID');
   }
-  const zipField = env.HIMS_KRJ_ZIP_FIELD || 'shareLink';
+  const zipField = env.HIMS_KRJ_ZIP_FIELD || 'ftpPath';
   if (!zipField || !zipField.split('.').every(key => /^[A-Za-z][A-Za-z0-9_]*$/.test(key) && key !== 'constructor' && key !== 'prototype')) {
     throw new Error('HIMS_KRJ_ZIP_FIELD must name the confirmed ZIP path field relative to payload');
   }
@@ -19,6 +19,7 @@ function krjConfig(env) {
     enabled: groupId > 0 || env.NODE_ENV !== 'production',
     jobMode: 'hims', events: ['STUDY_UPLOADED', 'SIGNOFF'],
     zipField,
+    allowPatientlessSignoff: true,
   };
 }
 
