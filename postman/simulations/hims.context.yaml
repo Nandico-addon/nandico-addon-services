@@ -118,10 +118,14 @@ assumptions:
   status: supported
   claim: The KRJ matcher ignores retired group-length metadata at the root and inside query sequences while enforcing real matching constraints in the exercised Fuji and Siemens scenarios.
   reason: DICOM PS3.5 section 7.2 permits discarding these encoding fields. The captured Fuji query included them; local replay reproduced the reported failure before the fix and returned a synthetic CR order afterwards.
-  verification: On 2026-11-27, a real DICOM test peer preserved group lengths that pydicom normally removes. Before the fix, the root replay returned 0xA900 and the nested-only replay returned zero results. After the fix, both returned the expected synthetic CR order. Patient/modality/procedure and optional sequence constraints remained enforced, and an unsupported populated scalar retained 0xA900. All 11 Python integration tests passed, including Siemens CT/MR and all test listeners. Backend tests passed 37 with 6 simulation wrappers skipped; HIMS passed 14 with 44 HTTP events; MsgClub passed 9 with 33 HTTP events. No live business requests or Windows deployment occurred; a rebuilt executable and scanner display remain to be verified.
+  verification: On 2026-11-27, a real DICOM test peer preserved group lengths that pydicom normally removes. Before the fix, the root replay returned 0xA900 and the nested-only replay returned zero results. After the fix, both returned the expected synthetic CR order. Patient/modality/procedure and optional sequence constraints remained enforced, and an unsupported populated scalar retained 0xA900. All 11 Python integration tests passed, including Siemens CT/MR and all test listeners. Backend tests passed 37 with 6 simulation wrappers skipped; HIMS passed 14 with 44 HTTP events; MsgClub passed 9 with 33 HTTP events. No live business requests or Windows deployment occurred; a rebuilt executable and scanner display remain to be verified. Follow-up checks on 27 November explicitly verified returned orders and isolation on CT, MR, US sonography/Doppler, DX, MG and CR. All 13 Python checks passed both from source and from a clean extraction of the refreshed source ZIP. The Windows build now runs these checks before packaging; no Windows executable was generated here.
   source: docs/krj-fuji-worklist.md; src/centers/krj/fetch worklist code/main.py; src/centers/krj/fetch worklist code/test_worklist.py; src/centers/krj/fetch worklist code/fixtures/fuji-worklist-query.json; https://dicom.nema.org/MEDICAL/Dicom/2024a/output/chtml/part05/sect_7.2.html
   updated_at: '2026-11-27'
 fingerprints:
+- id: krj-all-modality-build-kit
+  date: '2026-11-27'
+  commit: faac20d # Dirty tree: all-modality return tests and Windows build regression gate.
+  cli: 1.75.0
 - id: krj-fuji-retired-group-lengths
   date: '2026-11-27'
   commit: f010a5f # Dirty tree: worklist diagnostics, Siemens optional return keys and Fuji group-length matching.

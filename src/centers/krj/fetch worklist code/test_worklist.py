@@ -39,6 +39,14 @@ PATIENT = {
          'Hospitalid': 5, 'Branchid': 1, 'Adddate': '15/10/2026'},
         {'Tranid': '0032003', 'Treatmentname': 'Synthetic X-ray', 'Categoryname': 'X-RAY',
          'Hospitalid': 5, 'Branchid': 1, 'Adddate': '15/10/2026'},
+        {'Tranid': '0032004', 'Treatmentname': 'Synthetic Sonography', 'Categoryname': 'SONOGRAPHY',
+         'Hospitalid': 5, 'Branchid': 1, 'Adddate': '15/10/2026'},
+        {'Tranid': '0032005', 'Treatmentname': 'Synthetic Doppler', 'Categoryname': 'DOPPLER',
+         'Hospitalid': 5, 'Branchid': 1, 'Adddate': '15/10/2026'},
+        {'Tranid': '0032006', 'Treatmentname': 'Synthetic Mammography', 'Categoryname': 'MAMMOGRAPHY',
+         'Hospitalid': 5, 'Branchid': 1, 'Adddate': '15/10/2026'},
+        {'Tranid': '0032007', 'Treatmentname': 'Synthetic DX', 'Categoryname': 'SYNTHETIC-DX',
+         'Hospitalid': 5, 'Branchid': 1, 'Adddate': '15/10/2026'},
     ],
 }
 
@@ -100,6 +108,7 @@ class WorklistTests(unittest.TestCase):
         config.set('dicom', 'host', '127.0.0.1')
         config.set('ris', 'CR', '{"port": 0}')
         config.set('categories', 'X-RAY', 'CR')
+        config.set('categories', 'SYNTHETIC-DX', 'DX')
         cls.ports = {}
         for modality in config['ris']:
             while True:
@@ -287,6 +296,32 @@ class WorklistTests(unittest.TestCase):
         self.assertEqual(statuses, [0xFF00, 0])
         self.assertEqual(str(items[0].AccessionNumber), '0032002')
         self.assertIn('dicom.echo', self.read_log())
+
+    def test_all_modalities_return_their_orders_without_crossing_listener_boundaries(self):
+        expected = {'CT': {'0032002'}, 'MR': {'0032001'}, 'CR': {'0032003'},
+            'US': {'0032004', '0032005'}, 'MG': {'0032006'}, 'DX': {'0032007'}}
+        for modality, accessions in expected.items():
+            with self.subTest(modality=modality):
+                statuses, items = self.find(modality)
+                self.assertEqual(statuses, [0xFF00] * len(accessions) + [0])
+                self.assertEqual({str(item.AccessionNumber) for item in items}, accessions)
+                for item in items:
+                    self.assertEqual(str(item.PatientID), 'SYNTHETIC-01')
+                    step = item.ScheduledProcedureStepSequence[0]
+                    self.assertEqual(step.Modality, modality)
+                    self.assertEqual(step.ScheduledProcedureStepStartDate, DAY)
+                    self.assertEqual(step.ScheduledStationAETitle, 'SCANNER_TEST')
+                self.assertEqual(self.find(modality, name='OTHER-PATIENT*')[0], [0])
+
+    def test_group_length_metadata_remains_compatible_with_every_modality_listener(self):
+        for modality, accessions in [('CT', {'0032002'}), ('MR', {'0032001'}),
+                ('US', {'0032004', '0032005'}), ('DX', {'0032007'}), ('MG', {'0032006'})]:
+            with self.subTest(modality=modality):
+                query = self.fuji_query()
+                query.ScheduledProcedureStepSequence[0].Modality = modality
+                statuses, items = self.find(modality, query=query, legacy=True)
+                self.assertEqual(statuses, [0xFF00] * len(accessions) + [0])
+                self.assertEqual({str(item.AccessionNumber) for item in items}, accessions)
 
     @staticmethod
     def siemens_query():

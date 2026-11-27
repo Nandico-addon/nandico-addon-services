@@ -69,3 +69,20 @@ checks passed 37 tests with 6 simulation wrappers skipped; HIMS simulation
 passed 14 checks with 44 HTTP events; MsgClub passed 9 with 33 HTTP events.
 No live HIMS/WhatsApp calls were made. No Linux service, private environment,
 database, historical jobs or running Windows installation was modified.
+
+Follow-up build-kit verification on 27 November added explicit order-return
+checks for CT, MR, US (sonography and Doppler), DX and MG, together with CR and
+legacy group lengths. All 13 tests passed both in the source folder and after
+extracting the refreshed existing source ZIP into a temporary clean directory.
+The PowerShell build now stops before packaging if a regression check fails.
+Production `config.txt`, ports, mappings and AE Title were unchanged. The ZIP
+has one source folder and excludes environments, builds, bytecode and logs.
+
+To generate the Windows app, open PowerShell in that extracted source folder:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\build-windows.ps1
+```
+
+Keep the existing installed configuration when replacing the generated EXE
+and `_internal` files. This session did not create a native Windows executable.
