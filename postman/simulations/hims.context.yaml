@@ -114,7 +114,18 @@ assumptions:
   verification: On 2026-11-26, npm test passed 37 checks with 6 simulation wrappers skipped; test:hims passed 14 checks with 44 HTTP events; test:msgclub passed 9 checks with 33 HTTP events. Real signed requests traversed SQLite and the worker to the existing contract-based HIMS and PACS PDF stand-ins. Checks covered ftpPath without shareLink, patient-less SIGNOFF after a failed upload, PDF multipart bytes, duplicate suppression, historical shareLink job snapshots, and unchanged Ramsnehi validation. No live business writes or historical resends were made. Local CLI 1.75.0 does not support postman status; its signed-out collection runs succeeded locally without cloud publishing.
   source: PACS-addon-integration-contract-2026-11-26.pdf; docs/krj-hims-integration.md; src/centers/krj/config.js; src/shared/utils/validation.js; src/shared/services/outbox.service.js; test/centers/krj/simulation.test.js
   updated_at: '2026-11-26'
+- id: krj-fuji-retired-group-lengths
+  status: supported
+  claim: The KRJ matcher ignores retired group-length metadata at the root and inside query sequences while enforcing real matching constraints in the exercised Fuji and Siemens scenarios.
+  reason: DICOM PS3.5 section 7.2 permits discarding these encoding fields. The captured Fuji query included them; local replay reproduced the reported failure before the fix and returned a synthetic CR order afterwards.
+  verification: On 2026-11-27, a real DICOM test peer preserved group lengths that pydicom normally removes. Before the fix, the root replay returned 0xA900 and the nested-only replay returned zero results. After the fix, both returned the expected synthetic CR order. Patient/modality/procedure and optional sequence constraints remained enforced, and an unsupported populated scalar retained 0xA900. All 11 Python integration tests passed, including Siemens CT/MR and all test listeners. Backend tests passed 37 with 6 simulation wrappers skipped; HIMS passed 14 with 44 HTTP events; MsgClub passed 9 with 33 HTTP events. No live business requests or Windows deployment occurred; a rebuilt executable and scanner display remain to be verified.
+  source: docs/krj-fuji-worklist.md; src/centers/krj/fetch worklist code/main.py; src/centers/krj/fetch worklist code/test_worklist.py; src/centers/krj/fetch worklist code/fixtures/fuji-worklist-query.json; https://dicom.nema.org/MEDICAL/Dicom/2024a/output/chtml/part05/sect_7.2.html
+  updated_at: '2026-11-27'
 fingerprints:
+- id: krj-fuji-retired-group-lengths
+  date: '2026-11-27'
+  commit: f010a5f # Dirty tree: worklist diagnostics, Siemens optional return keys and Fuji group-length matching.
+  cli: 1.75.0
 - id: krj-20261126-ftp-and-patientless-signoff
   date: '2026-11-26'
   commit: 5915a68168c3234bce11779bfc86773cb2e54a79 # Dirty tree: FTP mapping and scoped SIGNOFF validation changes.
